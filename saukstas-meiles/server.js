@@ -1,4 +1,3 @@
-// server.js
 const jsonServer = require('json-server');
 const express = require('express');
 const server = jsonServer.create();
@@ -7,6 +6,47 @@ const middlewares = jsonServer.defaults();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+
+// Function to update categories list based on recipes
+function updateCategoriesList() {
+  console.log("Updating categories list...");
+  
+  // Get all recipes
+  const recipes = router.db.get('recipes').value();
+  
+  // Create a categories map to track counts
+  const categoriesMap = {};
+  
+  // Count occurrences of each category
+  recipes.forEach(recipe => {
+    if (recipe.categories && Array.isArray(recipe.categories)) {
+      recipe.categories.forEach(category => {
+        if (category) {
+          if (!categoriesMap[category]) {
+            categoriesMap[category] = 1;
+          } else {
+            categoriesMap[category] += 1;
+          }
+        }
+      });
+    }
+  });
+  
+  // Convert map to array
+  const categoriesArray = Object.keys(categoriesMap).map(name => ({
+    name,
+    count: categoriesMap[name]
+  }));
+  
+  // Sort by name
+  categoriesArray.sort((a, b) => a.name.localeCompare(b.name));
+  
+  // Update categories in database
+  router.db.set('categories', categoriesArray).write();
+  
+  console.log(`Updated categories list with ${categoriesArray.length} categories`);
+  return categoriesArray;
+}
 
 // Configure multer storage
 const storage = multer.diskStorage({
@@ -270,6 +310,23 @@ server.get('/api/categories', (req, res) => {
     success: true,
     data: categories
   });
+});
+
+// Add endpoint to rebuild categories
+server.get('/admin/rebuild-categories', (req, res) => {
+  try {
+    const categories = updateCategoriesList();
+    res.jsonp({
+      success: true,
+      data: categories
+    });
+  } catch (error) {
+    console.error('Error rebuilding categories:', error);
+    res.status(500).jsonp({
+      success: false,
+      error: 'Failed to rebuild categories'
+    });
+  }
 });
 
 // Handle /api/about endpoint with fallback data
@@ -545,6 +602,9 @@ server.post('/admin/recipes', upload.single('image'), (req, res) => {
     // Save to database
     router.db.get('recipes').push(newRecipe).write();
     
+    // Update categories list after adding a recipe
+    updateCategoriesList();
+    
     // Verify it was saved
     const savedRecipe = router.db.get('recipes').find({ id: newRecipe.id }).value();
     console.log("Recipe saved in database:", savedRecipe ? "Yes" : "No");
@@ -633,6 +693,9 @@ server.put('/admin/recipes/:id', upload.single('image'), (req, res) => {
   try {
     router.db.get('recipes').find({ id }).assign(updatedRecipe).write();
     
+    // Update categories list after updating a recipe
+    updateCategoriesList();
+    
     console.log("Recipe updated successfully");
     
     res.jsonp({
@@ -676,6 +739,9 @@ server.delete('/admin/recipes/:id', (req, res) => {
   
   router.db.get('recipes').remove({ id }).write();
   
+  // Update categories list after deleting a recipe
+  updateCategoriesList();
+  
   res.jsonp({
     success: true
   });
@@ -684,6 +750,18 @@ server.delete('/admin/recipes/:id', (req, res) => {
 // Use default router for any unhandled routes
 server.use('/api', router);
 server.use(router);
+
+// Update categories on server start
+server.use((req, res, next) => {
+  // We need to wait until the DB is ready before updating categories
+  // So we'll update it on the first request
+  if (!global.categoriesUpdated) {
+    console.log("Initial categories update...");
+    updateCategoriesList();
+    global.categoriesUpdated = true;
+  }
+  next();
+});
 
 // Start server
 const port = 3001;
@@ -697,4 +775,5 @@ server.listen(port, () => {
   console.log(`http://localhost:${port}/auth/login`);
   console.log(`http://localhost:${port}/admin/dashboard/stats`);
   console.log(`http://localhost:${port}/admin/recipes`);
+  console.log(`http://localhost:${port}/admin/rebuild-categories`);
 });

@@ -22,6 +22,40 @@ const AdminDashboard = () => {
     fetchDashboardData();
   }, []);
 
+  const rebuildCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/admin/rebuild-categories');
+      
+      if (response.data.success) {
+        // Show success notification
+        setNotification({
+          title: 'Sėkmė',
+          message: 'Kategorijų sąrašas sėkmingai atnaujintas.',
+          type: 'success'
+        });
+        
+        // Refresh dashboard data
+        fetchDashboardData();
+      } else {
+        setNotification({
+          title: 'Klaida',
+          message: response.data.error || 'Klaida atnaujinant kategorijas.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error rebuilding categories:', error);
+      setNotification({
+        title: 'Klaida',
+        message: 'Klaida atnaujinant kategorijas. Bandykite vėliau.',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -188,6 +222,18 @@ const AdminDashboard = () => {
       <AdminHeader activePage="dashboard" />
       
       <main className="admin-main container">
+        {/* Category rebuild button */}
+        <div className="admin-section-header" style={{ marginBottom: '20px' }}>
+          <h2 className="admin-section-title">Administravimo panelė</h2>
+          <button 
+            onClick={rebuildCategories} 
+            className="submit-button"
+            disabled={loading}
+          >
+            Atnaujinti kategorijas
+          </button>
+        </div>
+      
         <AdminWidgets stats={stats} />
         
         <div className="admin-section">
