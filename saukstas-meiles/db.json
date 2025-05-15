@@ -6,8 +6,8 @@
       "categories": [
         "Gėrimai ir kokteiliai"
       ],
-      "prep_time": "0",
-      "cook_time": "0",
+      "prep_time": "65",
+      "cook_time": "6",
       "servings": "1",
       "ingredients": [
         "dfg",
@@ -16,11 +16,13 @@
       "steps": [
         "dfgdfg",
         "dfg",
-        "dfg"
+        "dfg",
+        "kkk",
+        "kk"
       ],
       "notes": "asdasd",
       "status": "published",
-      "image": "1747339247508-image_(1).jpg",
+      "image": "null",
       "id": "1747339247518",
       "created_at": "2025-05-15T20:00:47.518Z"
     },
@@ -231,6 +233,25 @@
       "image": "1747341105587-DSC_3861.JPG",
       "id": "1747341105606",
       "created_at": "2025-05-15T20:31:45.606Z"
+    },
+    {
+      "title": "gh",
+      "intro": "ghjgh",
+      "categories": [
+        "Desertai",
+        "Mėsa"
+      ],
+      "prep_time": "",
+      "cook_time": "",
+      "servings": "",
+      "steps": [
+        "dgh"
+      ],
+      "notes": "",
+      "status": "draft",
+      "image": "1747346406164-333333.png",
+      "id": "1747346406170",
+      "created_at": "2025-05-15T22:00:06.170Z"
     }
   ],
   "categories": [
@@ -252,7 +273,7 @@
     },
     {
       "name": "Desertai",
-      "count": 3
+      "count": 4
     },
     {
       "name": "Gamta lėkštėje",
@@ -276,7 +297,7 @@
     },
     {
       "name": "Mėsa",
-      "count": 3
+      "count": 4
     },
     {
       "name": "Sriubos",
