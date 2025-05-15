@@ -7,6 +7,7 @@ const Sidebar = () => {
   const [popularRecipes, setPopularRecipes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [email, setEmail] = useState('');
+  const [aboutData, setAboutData] = useState(null);
 
   useEffect(() => {
     // Fetch popular recipes
@@ -33,8 +34,21 @@ const Sidebar = () => {
       }
     };
 
+    // Fetch about data for the sidebar
+    const fetchAboutData = async () => {
+      try {
+        const response = await api.get('/api/about');
+        if (response.data.success) {
+          setAboutData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching about data for sidebar:', error);
+      }
+    };
+
     fetchPopularRecipes();
     fetchCategories();
+    fetchAboutData();
   }, []);
 
   const handleNewsletterSubmit = (e) => {
@@ -63,21 +77,25 @@ const Sidebar = () => {
         <h3 className="sidebar-title">Apie mane</h3>
         <div className="about-me-img">
             <img 
-                src="/img/profile.jpg" 
+                src={aboutData && aboutData.sidebar_image 
+                  ? `/img/about/${aboutData.sidebar_image}` 
+                  : (aboutData && aboutData.image 
+                    ? `/img/about/${aboutData.image}` 
+                    : '/img/profile-placeholder.jpg')} 
                 alt="Šaukštas Meilės autorė" 
                 onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`;
+                  e.target.onerror = null;
+                  e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`;
                 }}
             />
         </div>
         <div className="about-me-text">
-          <p>Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui.</p>
+          <p>{aboutData ? aboutData.intro.substring(0, 150) + '...' : 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais...'}</p>
         </div>
         <div className="social-links">
-          <a href="#" className="social-link"><i className="fa fa-instagram"></i></a>
-          <a href="#" className="social-link"><i className="fa fa-facebook"></i></a>
-          <a href="#" className="social-link"><i className="fa fa-pinterest"></i></a>
+          <a href={aboutData?.social?.instagram || "#"} className="social-link" target="_blank" rel="noopener noreferrer"><i className="fa fa-instagram"></i></a>
+          <a href={aboutData?.social?.facebook || "#"} className="social-link" target="_blank" rel="noopener noreferrer"><i className="fa fa-facebook"></i></a>
+          <a href={aboutData?.social?.pinterest || "#"} className="social-link" target="_blank" rel="noopener noreferrer"><i className="fa fa-pinterest"></i></a>
         </div>
       </div>
       

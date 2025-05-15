@@ -21,7 +21,8 @@ const AdminAbout = () => {
       facebook: '',
       pinterest: ''
     },
-    image: null
+    image: null,
+    sidebar_image: null
   });
   
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,8 @@ const AdminAbout = () => {
   const [notification, setNotification] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [currentImage, setCurrentImage] = useState(null);
+  const [previewSidebarImage, setPreviewSidebarImage] = useState(null);
+  const [currentSidebarImage, setCurrentSidebarImage] = useState(null);
   
   useEffect(() => {
     fetchAboutData();
@@ -60,6 +63,12 @@ const AdminAbout = () => {
         if (data.image) {
           setCurrentImage(data.image);
           setPreviewImage(`/img/about/${data.image}`);
+        }
+        
+        // Set current sidebar image if exists
+        if (data.sidebar_image) {
+          setCurrentSidebarImage(data.sidebar_image);
+          setPreviewSidebarImage(`/img/about/${data.sidebar_image}`);
         }
       } else {
         setNotification({
@@ -150,6 +159,33 @@ const AdminAbout = () => {
     setCurrentImage(null);
   };
   
+  const handleSidebarImageChange = (e) => {
+    const file = e.target.files[0];
+    
+    if (file) {
+      setFormData(prev => ({
+        ...prev,
+        sidebar_image: file
+      }));
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreviewSidebarImage(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const removeSidebarImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      sidebar_image: null
+    }));
+    setPreviewSidebarImage(null);
+    setCurrentSidebarImage(null);
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -190,6 +226,11 @@ const AdminAbout = () => {
         data.append('image', formData.image);
       }
       
+      // Add sidebar image if selected
+      if (formData.sidebar_image instanceof File) {
+        data.append('sidebar_image', formData.sidebar_image);
+      }
+      
       // Send the request
       const response = await api.put('/admin/about', data, {
         headers: {
@@ -204,15 +245,20 @@ const AdminAbout = () => {
           type: 'success'
         });
         
-        // Update current image if one was uploaded
+        // Update current images if they were uploaded
         if (response.data.data.image) {
           setCurrentImage(response.data.data.image);
         }
         
-        // Reset the file input
+        if (response.data.data.sidebar_image) {
+          setCurrentSidebarImage(response.data.data.sidebar_image);
+        }
+        
+        // Reset the file inputs
         setFormData(prev => ({
           ...prev,
-          image: null
+          image: null,
+          sidebar_image: null
         }));
         
         // Refresh data
@@ -298,39 +344,78 @@ const AdminAbout = () => {
               ></textarea>
             </div>
             
-            <div className="form-group">
-              <label>Profilio nuotrauka</label>
-              <div className="file-upload">
-                <label className="file-upload-label">
-                  <div className="file-upload-text">
-                    <i className="fas fa-upload file-upload-icon"></i>
-                    <span>Pasirinkite nuotrauką arba nutempkite ją čia</span>
+            <div className="image-upload-grid">
+              {/* Main profile image upload */}
+              <div className="form-group">
+                <label>Profilio nuotrauka (puslapiui)</label>
+                <div className="file-upload">
+                  <label className="file-upload-label">
+                    <div className="file-upload-text">
+                      <i className="fas fa-upload file-upload-icon"></i>
+                      <span>Pasirinkite pagrindinę nuotrauką</span>
+                    </div>
+                    <input 
+                      type="file" 
+                      id="profile-image" 
+                      name="image" 
+                      className="file-upload-input"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      disabled={submitting}
+                    />
+                  </label>
+                </div>
+                
+                {previewImage && (
+                  <div className="image-preview" style={{ display: 'block' }}>
+                    <img src={previewImage} alt="Profile preview" />
+                    <button 
+                      type="button" 
+                      className="remove-image"
+                      onClick={removeImage}
+                      disabled={submitting}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
                   </div>
-                  <input 
-                    type="file" 
-                    id="profile-image" 
-                    name="image" 
-                    className="file-upload-input"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    disabled={submitting}
-                  />
-                </label>
+                )}
               </div>
               
-              {previewImage && (
-                <div className="image-preview" style={{ display: 'block' }}>
-                  <img src={previewImage} alt="Profile preview" />
-                  <button 
-                    type="button" 
-                    className="remove-image"
-                    onClick={removeImage}
-                    disabled={submitting}
-                  >
-                    <i className="fas fa-times"></i>
-                  </button>
+              {/* Sidebar profile image upload */}
+              <div className="form-group">
+                <label>Profilio nuotrauka (šoninei juostai)</label>
+                <div className="file-upload">
+                  <label className="file-upload-label">
+                    <div className="file-upload-text">
+                      <i className="fas fa-upload file-upload-icon"></i>
+                      <span>Pasirinkite mažą nuotrauką</span>
+                    </div>
+                    <input 
+                      type="file" 
+                      id="sidebar-image" 
+                      name="sidebar_image" 
+                      className="file-upload-input"
+                      accept="image/*"
+                      onChange={handleSidebarImageChange}
+                      disabled={submitting}
+                    />
+                  </label>
                 </div>
-              )}
+                
+                {previewSidebarImage && (
+                  <div className="image-preview sidebar-preview" style={{ display: 'block' }}>
+                    <img src={previewSidebarImage} alt="Sidebar profile preview" />
+                    <button 
+                      type="button" 
+                      className="remove-image"
+                      onClick={removeSidebarImage}
+                      disabled={submitting}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="form-group">

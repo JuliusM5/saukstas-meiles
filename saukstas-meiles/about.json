@@ -1,0 +1,22 @@
+{
+  "title": "Apie Mane",
+  "subtitle": "Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo",
+  "intro": "Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui.",
+  "sections": [
+    {
+      "title": "Mano istorija",
+      "content": "Viskas prasidėjo mažoje kaimo virtuvėje, kur mano močiutė ruošdavo kvapnius patiekalus iš paprastų ingredientų."
+    },
+    {
+      "title": "Mano filosofija",
+      "content": "Tikiu, kad maistas yra daugiau nei tik kuras mūsų kūnui – tai būdas sujungti žmones, išsaugoti tradicijas ir kurti naujus prisiminimus."
+    }
+  ],
+  "social": {
+    "email": "info@saukstas-meiles.lt",
+    "instagram": "#",
+    "facebook": "#",
+    "pinterest": "#"
+  },
+  "image": "1747344177052-d37c71c4-3999-4e5c-8291-d623cb025a70.jpg"
+}

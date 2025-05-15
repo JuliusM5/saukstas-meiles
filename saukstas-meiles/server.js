@@ -7,6 +7,62 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Create a file to store the about page data
+const aboutFilePath = path.join(__dirname, 'about.json');
+
+// Helper function to read about data
+const getAboutData = () => {
+  try {
+    if (fs.existsSync(aboutFilePath)) {
+      const data = fs.readFileSync(aboutFilePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Error reading about data:', error);
+  }
+  
+  // Default data if file doesn't exist or can't be read
+  return {
+    title: 'Apie Mane',
+    subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
+    intro: 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui.',
+    sections: [
+      {
+        title: 'Mano istorija',
+        content: 'Viskas prasidėjo mažoje kaimo virtuvėje, kur mano močiutė ruošdavo kvapnius patiekalus iš paprastų ingredientų.'
+      },
+      {
+        title: 'Mano filosofija',
+        content: 'Tikiu, kad maistas yra daugiau nei tik kuras mūsų kūnui – tai būdas sujungti žmones, išsaugoti tradicijas ir kurti naujus prisiminimus.'
+      }
+    ],
+    social: {
+      email: 'info@saukstas-meiles.lt',
+      instagram: '#',
+      facebook: '#',
+      pinterest: '#'
+    },
+    image: null // No image by default
+  };
+};
+
+// Helper function to save about data
+const saveAboutData = (data) => {
+  try {
+    fs.writeFileSync(aboutFilePath, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error saving about data:', error);
+    return false;
+  }
+};
+
+// Initialize the about.json file if it doesn't exist
+if (!fs.existsSync(aboutFilePath)) {
+  saveAboutData(getAboutData());
+  console.log('Created default about.json file');
+}
+
 // Function to update categories list based on recipes
 function updateCategoriesList() {
   console.log("Updating categories list...");
@@ -48,11 +104,37 @@ function updateCategoriesList() {
   return categoriesArray;
 }
 
+// Make sure the directories for images exist
+const ensureDirectoriesExist = () => {
+  const directories = [
+    path.join(__dirname, 'public', 'img'),
+    path.join(__dirname, 'public', 'img', 'recipes'),
+    path.join(__dirname, 'public', 'img', 'about')
+  ];
+  
+  directories.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`Created directory: ${dir}`);
+    }
+  });
+};
+
+// Call this function when server starts
+ensureDirectoriesExist();
+
 // Configure multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Define upload directory - this is critical!
-    const uploadDir = path.join(__dirname, 'public', 'img', 'recipes');
+    // Define upload directory based on request URL
+    let uploadDir;
+    
+    if (req.url.includes('/admin/about')) {
+      uploadDir = path.join(__dirname, 'public', 'img', 'about');
+    } else {
+      uploadDir = path.join(__dirname, 'public', 'img', 'recipes');
+    }
+    
     console.log("Upload directory:", uploadDir);
     
     // Ensure directory exists
@@ -165,6 +247,107 @@ server.use((req, res, next) => {
     req.body.created_at = new Date().toISOString();
   }
   next();
+});
+
+// Endpoint to get about page data
+server.get('/about', (req, res) => {
+  const aboutData = getAboutData();
+  res.jsonp({
+    success: true,
+    data: aboutData
+  });
+});
+
+// Endpoint to get about page data for the API prefix
+server.get('/api/about', (req, res) => {
+  const aboutData = getAboutData();
+  res.jsonp({
+    success: true,
+    data: aboutData
+  });
+});
+
+// Admin endpoint to get about page data
+server.get('/admin/about', (req, res) => {
+  const aboutData = getAboutData();
+  res.jsonp({
+    success: true,
+    data: aboutData
+  });
+});
+
+// Admin endpoint to update about page data
+server.put('/admin/about', upload.single('image'), (req, res) => {
+  console.log("Updating about page data");
+  console.log("Request body:", req.body);
+  console.log("File:", req.file);
+  
+  try {
+    // Get current data
+    const currentData = getAboutData();
+    
+    // Parse the sections from the request body
+    const sections = [];
+    const sectionTitles = req.body.section_titles || [];
+    const sectionContents = req.body.section_contents || [];
+    
+    // Handle sections
+    const titlesArray = Array.isArray(sectionTitles) ? sectionTitles : [sectionTitles];
+    const contentsArray = Array.isArray(sectionContents) ? sectionContents : [sectionContents];
+    
+    for (let i = 0; i < titlesArray.length; i++) {
+      if (titlesArray[i] && contentsArray[i]) {
+        sections.push({
+          title: titlesArray[i],
+          content: contentsArray[i]
+        });
+      }
+    }
+    
+    // Parse social links
+    const social = {
+      email: req.body.email || currentData.social?.email || 'info@saukstas-meiles.lt',
+      instagram: req.body.instagram || currentData.social?.instagram || '#',
+      facebook: req.body.facebook || currentData.social?.facebook || '#',
+      pinterest: req.body.pinterest || currentData.social?.pinterest || '#'
+    };
+    
+    // Create the updated data object
+    const updatedData = {
+      title: req.body.title || currentData.title,
+      subtitle: req.body.subtitle || currentData.subtitle,
+      intro: req.body.intro || currentData.intro,
+      sections: sections.length > 0 ? sections : currentData.sections,
+      social: social,
+      image: currentData.image // Keep existing image by default
+    };
+    
+    // Handle profile image upload
+    if (req.file) {
+      // Store just the filename in the data (not the full path)
+      updatedData.image = req.file.filename;
+      console.log(`Saved about image as ${req.file.filename}`);
+    }
+    
+    // Save the updated data
+    if (saveAboutData(updatedData)) {
+      res.jsonp({
+        success: true,
+        data: updatedData
+      });
+    } else {
+      res.status(500).jsonp({
+        success: false,
+        error: "Failed to save about page data"
+      });
+    }
+  } catch (error) {
+    console.error("Error updating about page:", error);
+    res.status(500).jsonp({
+      success: false,
+      error: "Failed to update about page: " + error.message
+    });
+  }
 });
 
 // Add custom routes before JSON Server router
@@ -303,74 +486,39 @@ server.get('/api/recipes/:id', (req, res) => {
 });
 
 // Handle /api/categories endpoint
-server.get('/api/categories/all', (req, res) => {
+server.get('/api/categories', (req, res) => {
+  const categories = router.db.get('categories').value();
+  
+  res.jsonp({
+    success: true,
+    data: categories
+  });
+});
+
+// Add endpoint to rebuild categories
+server.get('/admin/rebuild-categories', (req, res) => {
   try {
-    // Get all recipes
-    const recipes = router.db.get('recipes').value();
-    
-    // Get all unique categories from recipes
-    const allCategories = new Set();
-    recipes.forEach(recipe => {
-      if (recipe.categories && Array.isArray(recipe.categories)) {
-        recipe.categories.forEach(category => {
-          if (category) {
-            allCategories.add(category);
-          }
-        });
-      }
-    });
-    
-    // Convert to array with count
-    const categoriesArray = Array.from(allCategories).map(name => {
-      const count = recipes.filter(recipe => 
-        recipe.categories && recipe.categories.includes(name)
-      ).length;
-      
-      return { name, count };
-    });
-    
-    // Sort by name
-    categoriesArray.sort((a, b) => a.name.localeCompare(b.name));
-    
+    const categories = updateCategoriesList();
     res.jsonp({
       success: true,
-      data: categoriesArray
+      data: categories
     });
   } catch (error) {
-    console.error('Error generating all categories:', error);
+    console.error('Error rebuilding categories:', error);
     res.status(500).jsonp({
       success: false,
-      error: 'Failed to generate categories'
+      error: 'Failed to rebuild categories'
     });
   }
 });
 
 // Handle /api/about endpoint with fallback data
 server.get('/api/about', (req, res) => {
-  // Provide default About page data
+  // Return the data from our about.json file
+  const aboutData = getAboutData();
   res.jsonp({
     success: true,
-    data: {
-      title: 'Apie Mane',
-      subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
-      intro: 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui.',
-      sections: [
-        {
-          title: 'Mano istorija',
-          content: 'Viskas prasidėjo mažoje kaimo virtuvėje, kur mano močiutė ruošdavo kvapnius patiekalus iš paprastų ingredientų.'
-        },
-        {
-          title: 'Mano filosofija',
-          content: 'Tikiu, kad maistas yra daugiau nei tik kuras mūsų kūnui – tai būdas sujungti žmones, išsaugoti tradicijas ir kurti naujus prisiminimus.'
-        }
-      ],
-      social: {
-        email: 'info@saukstas-meiles.lt',
-        instagram: '#',
-        facebook: '#',
-        pinterest: '#'
-      }
-    }
+    data: aboutData
   });
 });
 
@@ -792,4 +940,5 @@ server.listen(port, () => {
   console.log(`http://localhost:${port}/admin/dashboard/stats`);
   console.log(`http://localhost:${port}/admin/recipes`);
   console.log(`http://localhost:${port}/admin/rebuild-categories`);
+  console.log(`http://localhost:${port}/admin/about`);
 });
