@@ -42,7 +42,8 @@ const getAboutData = () => {
       facebook: '#',
       pinterest: '#'
     },
-    image: null // No image by default
+    image: null, // Main profile image for About page
+    sidebar_image: null // Smaller image for sidebar
   };
 };
 
@@ -277,10 +278,13 @@ server.get('/admin/about', (req, res) => {
 });
 
 // Admin endpoint to update about page data
-server.put('/admin/about', upload.single('image'), (req, res) => {
+server.put('/admin/about', upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'sidebar_image', maxCount: 1 }
+]), (req, res) => {
   console.log("Updating about page data");
   console.log("Request body:", req.body);
-  console.log("File:", req.file);
+  console.log("Files:", req.files);
   
   try {
     // Get current data
@@ -319,14 +323,22 @@ server.put('/admin/about', upload.single('image'), (req, res) => {
       intro: req.body.intro || currentData.intro,
       sections: sections.length > 0 ? sections : currentData.sections,
       social: social,
-      image: currentData.image // Keep existing image by default
+      image: currentData.image, // Keep existing image by default
+      sidebar_image: currentData.sidebar_image // Keep existing sidebar image by default
     };
     
     // Handle profile image upload
-    if (req.file) {
+    if (req.files && req.files.image && req.files.image[0]) {
       // Store just the filename in the data (not the full path)
-      updatedData.image = req.file.filename;
-      console.log(`Saved about image as ${req.file.filename}`);
+      updatedData.image = req.files.image[0].filename;
+      console.log(`Saved about image as ${req.files.image[0].filename}`);
+    }
+    
+    // Handle sidebar image upload
+    if (req.files && req.files.sidebar_image && req.files.sidebar_image[0]) {
+      // Store just the filename in the data (not the full path)
+      updatedData.sidebar_image = req.files.sidebar_image[0].filename;
+      console.log(`Saved sidebar image as ${req.files.sidebar_image[0].filename}`);
     }
     
     // Save the updated data
