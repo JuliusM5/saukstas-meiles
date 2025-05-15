@@ -1,0 +1,67 @@
+.category-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.category-title {
+  font-size: 2.2rem;
+  margin-bottom: 15px;
+  font-family: 'Playfair Display', serif;
+  color: #7f4937;
+}
+
+.category-description {
+  font-size: 1.1rem;
+  color: #7a7a7a;
+  font-style: italic;
+  line-height: 1.5;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/*General styles*/
+
+body {
+  font-family: 'Source Sans Pro', sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background-color: #f8f5f1;
+  margin: 0;
+  padding: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Common form styles */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #3d3d3d;
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e6ddd6;
+  border-radius: 4px;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 0.95rem;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #7f4937;
+  box-shadow: 0 0 0 2px rgba(127, 73, 55, 0.1);
+}
+
+textarea.form-control {
+  min-height: 150px;
+  resize: vertical;
+}

@@ -1,0 +1,49 @@
+{
+  "recipes": [
+    {
+      "id": "1",
+      "title": "Bulvių košė su grietine",
+      "intro": "Tradicinis lietuviškas patiekalas, kuris puikiai tinka prie mėsos ar žuvies patiekalų.",
+      "categories": ["Daržovės", "Bulvės"],
+      "ingredients": [
+        "1 kg bulvių",
+        "100 ml pieno",
+        "50 g sviesto",
+        "2 šaukštai grietinės",
+        "Druskos pagal skonį"
+      ],
+      "steps": [
+        "Nulupkite bulves ir supjaustykite jas vidutinio dydžio kubeliais.",
+        "Sudėkite bulves į puodą, užpilkite šaltu vandeniu, įberkite truputį druskos ir virkite apie 20 minučių, kol bulvės suminkštės.",
+        "Nupilkite vandenį ir sugrūskite bulves."
+      ],
+      "prep_time": "10",
+      "cook_time": "25",
+      "servings": "4",
+      "created_at": "2025-05-14T10:00:00.000Z",
+      "status": "published"
+    }
+  ],
+  "categories": [
+    {
+      "name": "Daržovės",
+      "count": 5
+    },
+    {
+      "name": "Bulvės",
+      "count": 3
+    },
+    {
+      "name": "Desertai",
+      "count": 7
+    }
+  ],
+  "comments": [],
+  "users": [
+    {
+      "id": "1",
+      "username": "admin",
+      "password": "admin123"
+    }
+  ]
+}
