@@ -65,3 +65,33 @@ textarea.form-control {
   min-height: 150px;
   resize: vertical;
 }
+
+.category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 30px;
+  justify-content: center;
+}
+
+.category-filter-button {
+  padding: 8px 16px;
+  background-color: #f9f6f1;
+  border: 1px solid #e6ddd6;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #7a7a7a;
+}
+
+.category-filter-button:hover {
+  background-color: #e6ddd6;
+  color: #3d3d3d;
+}
+
+.category-filter-button.active {
+  background-color: #7f4937;
+  color: white;
+  border-color: #7f4937;
+}

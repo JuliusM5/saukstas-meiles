@@ -295,7 +295,16 @@
       "count": 2
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "author": "gjk",
+      "email": "owltree200@gmail.com",
+      "content": "gjkgh",
+      "created_at": "2025-05-15T20:48:45.847Z",
+      "recipeId": "1747339394844",
+      "id": 1
+    }
+  ],
   "users": [
     {
       "id": "1",

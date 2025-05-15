@@ -1,20 +1,49 @@
-.category-header {
-  margin-bottom: 30px;
+/* Update your RecipeList.css to change the grid layout to 3 columns */
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* Changed from 2 to 3 columns */
+  gap: 25px;
+  margin-bottom: 40px;
+}
+
+/* Media query for smaller screens */
+@media (max-width: 768px) {
+  .recipe-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .recipe-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Add styles for the "More Recipes" button */
+.more-recipes-button-container {
   text-align: center;
+  margin: 40px 0;
 }
 
-.category-title {
-  font-size: 2.2rem;
-  margin-bottom: 15px;
+.more-recipes-button {
+  display: inline-block;
+  padding: 12px 30px;
+  background-color: #7f4937;
+  color: white;
+  border: none;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
   font-family: 'Playfair Display', serif;
-  color: #7f4937;
+  font-weight: 400;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 4px;
 }
 
-.category-description {
-  font-size: 1.1rem;
-  color: #7a7a7a;
-  font-style: italic;
-  line-height: 1.5;
-  max-width: 800px;
-  margin: 0 auto;
+.more-recipes-button:hover {
+  background-color: #aa5f44;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }

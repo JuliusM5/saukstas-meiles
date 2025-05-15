@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,6 +39,14 @@ const AdminHeader = ({ activePage }) => {
             </li>
             <li>
               <Link 
+                to="/admin/about" 
+                className={activePage === 'about' ? 'active' : ''}
+              >
+                Apie mane
+              </Link>
+            </li>
+            <li>
+              <Link 
                 to="/admin/comments" 
                 className={activePage === 'comments' ? 'active' : ''}
               >
@@ -50,14 +59,6 @@ const AdminHeader = ({ activePage }) => {
                 className={activePage === 'media' ? 'active' : ''}
               >
                 Nuotraukos
-              </Link>
-            </li>
-            <li>
-              <Link 
-                to="/admin/about" 
-                className={activePage === 'about' ? 'active' : ''}
-              >
-                Apie mane
               </Link>
             </li>
             <li>

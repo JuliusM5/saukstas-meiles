@@ -32,6 +32,20 @@ const AboutPage = () => {
   const fetchAboutData = async () => {
     try {
       setLoading(true);
+      // Try to get data from /api/about first, then fallback to /about
+      try {
+        const response = await api.get('/api/about');
+        
+        if (response.data.success) {
+          setAboutData(response.data.data);
+          setLoading(false);
+          return;
+        }
+      } catch (firstError) {
+        console.log('First attempt failed, trying alternate endpoint');
+      }
+      
+      // If first attempt fails, try the alternate endpoint
       const response = await api.get('/about');
       
       if (response.data.success) {
@@ -42,9 +56,37 @@ const AboutPage = () => {
     } catch (error) {
       console.error('Error fetching about data:', error);
       setError('Klaida įkeliant informaciją. Bandykite vėliau.');
+      
+      // Use default data if API fails completely
+      setAboutData(getDefaultAboutData());
     } finally {
       setLoading(false);
     }
+  };
+
+  const getDefaultAboutData = () => {
+    // Default data to use if API fails
+    return {
+      title: 'Apie Mane',
+      subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
+      intro: 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui. Maisto gaminimas ir fotografija man – tai savotiška meditacija, leidžianti trumpam sustoti ir pasimėgauti akimirka šiandieniniame chaose.',
+      sections: [
+        {
+          title: 'Mano istorija',
+          content: 'Viskas prasidėjo mažoje kaimo virtuvėje, kur mano močiutė Ona ruošdavo kvapnius patiekalus iš paprastų ingredientų. Stebėdavau, kaip jos rankos minkydavo tešlą, kaip ji lengvai ir gracingai sukosi tarp puodų ir keptuvių, kaip pasakodavo apie kiekvieną žolelę, kurią pridėdavo į sriubą ar arbatą.\n\nBaigusi mokyklą, persikėliau į Kauną studijuoti ir pradėjau kurti savo virtuvėje. Dirbau įvairiose maisto srityse – nuo restoranų iki maisto stilistikos žurnalams. Tačiau po ilgo laiko, praleisto mieste, pajutau poreikį grįžti prie savo šaknų, arčiau gamtos, arčiau tų paprastų, bet sodrių skonių, kurie lydėjo mano vaikystę.'
+        },
+        {
+          title: 'Mano filosofija',
+          content: 'Tikiu, kad maistas yra daugiau nei tik kuras mūsų kūnui – tai būdas sujungti žmones, išsaugoti tradicijas ir kurti naujus prisiminimus. Mano kulinarinė filosofija grindžiama trimis pagrindiniais principais:\n\nPaprastumas. Geriausios receptų idėjos dažnai gimsta iš paprastumo. Naudoju nedaug ingredientų, bet kiekvienas jų atlieka svarbų vaidmenį patiekalo skonio ir tekstūros harmonijoje.\n\nSezoniniai produktai. Gamta yra geriausia šefė, todėl gerbiu jos ritmą ir renkuosi produktus, kurie yra savo geriausios kokybės tuo metu. Pavasario žalumynai, vasaros uogos, rudens grybai ir žiemos šakniavaisiai – kiekvienas sezonas turi savo išskirtinį charakterį.'
+        }
+      ],
+      social: {
+        email: 'lidija@saukstas-meiles.lt',
+        facebook: 'https://facebook.com/saukstas.meiles',
+        instagram: 'https://instagram.com/saukstas.meiles',
+        pinterest: 'https://pinterest.com/saukstas.meiles'
+      }
+    };
   };
 
   const handleInputChange = (e) => {
@@ -115,42 +157,8 @@ const AboutPage = () => {
     );
   }
 
-  if (error) {
-    return (
-      <>
-        <div className="content-main">
-          <div className="about-page-error">
-            <p>{error}</p>
-            <button onClick={fetchAboutData}>Bandyti dar kartą</button>
-          </div>
-        </div>
-        <Sidebar />
-      </>
-    );
-  }
-
-  // Use default data if API fails
-  const data = aboutData || {
-    title: 'Apie Mane',
-    subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
-    intro: 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui. Maisto gaminimas ir fotografija man – tai savotiška meditacija, leidžianti trumpam sustoti ir pasimėgauti akimirka šiandieniniame chaose.',
-    sections: [
-      {
-        title: 'Mano istorija',
-        content: 'Viskas prasidėjo mažoje kaimo virtuvėje, kur mano močiutė Ona ruošdavo kvapnius patiekalus iš paprastų ingredientų. Stebėdavau, kaip jos rankos minkydavo tešlą, kaip ji lengvai ir gracingai sukosi tarp puodų ir keptuvių, kaip pasakodavo apie kiekvieną žolelę, kurią pridėdavo į sriubą ar arbatą.\n\nBaigusi mokyklą, persikėliau į Kauną studijuoti ir pradėjau kurti savo virtuvėje. Dirbau įvairiose maisto srityse – nuo restoranų iki maisto stilistikos žurnalams. Tačiau po ilgo laiko, praleisto mieste, pajutau poreikį grįžti prie savo šaknų, arčiau gamtos, arčiau tų paprastų, bet sodrių skonių, kurie lydėjo mano vaikystę.'
-      },
-      {
-        title: 'Mano filosofija',
-        content: 'Tikiu, kad maistas yra daugiau nei tik kuras mūsų kūnui – tai būdas sujungti žmones, išsaugoti tradicijas ir kurti naujus prisiminimus. Mano kulinarinė filosofija grindžiama trimis pagrindiniais principais:\n\nPaprastumas. Geriausios receptų idėjos dažnai gimsta iš paprastumo. Naudoju nedaug ingredientų, bet kiekvienas jų atlieka svarbų vaidmenį patiekalo skonio ir tekstūros harmonijoje.\n\nSezoniniai produktai. Gamta yra geriausia šefė, todėl gerbiu jos ritmą ir renkuosi produktus, kurie yra savo geriausios kokybės tuo metu. Pavasario žalumynai, vasaros uogos, rudens grybai ir žiemos šakniavaisiai – kiekvienas sezonas turi savo išskirtinį karakterį.'
-      }
-    ],
-    social: {
-      email: 'lidija@saukstas-meiles.lt',
-      facebook: 'https://facebook.com/saukstas.meiles',
-      instagram: 'https://instagram.com/saukstas.meiles',
-      pinterest: 'https://pinterest.com/saukstas.meiles'
-    }
-  };
+  // Use default data or API data
+  const data = aboutData || getDefaultAboutData();
 
   return (
     <>
@@ -163,7 +171,15 @@ const AboutPage = () => {
           
           <div className="about-image">
             {data.image ? (
-              <img src={`/img/about/${data.image}`} alt="Autorė" />
+              <img 
+                src={`/img/about/${data.image}`} 
+                alt="Autorė" 
+                onError={(e) => {
+                  // If image fails to load, use a data URI placeholder
+                  e.target.onerror = null;
+                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='300' viewBox='0 0 500 300'%3E%3Crect fill='%23f8f5f1' width='500' height='300'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='30' text-anchor='middle' x='250' y='150'%3ELidija - Šaukštas Meilės autorė%3C/text%3E%3C/svg%3E";
+                }}
+              />
             ) : (
               <div className="placeholder-image">
                 <span>Lidija - Šaukštas Meilės autorė</span>

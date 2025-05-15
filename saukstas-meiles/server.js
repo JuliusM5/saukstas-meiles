@@ -303,28 +303,44 @@ server.get('/api/recipes/:id', (req, res) => {
 });
 
 // Handle /api/categories endpoint
-server.get('/api/categories', (req, res) => {
-  const categories = router.db.get('categories').value();
-  
-  res.jsonp({
-    success: true,
-    data: categories
-  });
-});
-
-// Add endpoint to rebuild categories
-server.get('/admin/rebuild-categories', (req, res) => {
+server.get('/api/categories/all', (req, res) => {
   try {
-    const categories = updateCategoriesList();
+    // Get all recipes
+    const recipes = router.db.get('recipes').value();
+    
+    // Get all unique categories from recipes
+    const allCategories = new Set();
+    recipes.forEach(recipe => {
+      if (recipe.categories && Array.isArray(recipe.categories)) {
+        recipe.categories.forEach(category => {
+          if (category) {
+            allCategories.add(category);
+          }
+        });
+      }
+    });
+    
+    // Convert to array with count
+    const categoriesArray = Array.from(allCategories).map(name => {
+      const count = recipes.filter(recipe => 
+        recipe.categories && recipe.categories.includes(name)
+      ).length;
+      
+      return { name, count };
+    });
+    
+    // Sort by name
+    categoriesArray.sort((a, b) => a.name.localeCompare(b.name));
+    
     res.jsonp({
       success: true,
-      data: categories
+      data: categoriesArray
     });
   } catch (error) {
-    console.error('Error rebuilding categories:', error);
+    console.error('Error generating all categories:', error);
     res.status(500).jsonp({
       success: false,
-      error: 'Failed to rebuild categories'
+      error: 'Failed to generate categories'
     });
   }
 });

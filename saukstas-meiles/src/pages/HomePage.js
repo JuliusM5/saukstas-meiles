@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
 import RecipeList from '../components/recipes/RecipeList';
 import Sidebar from '../components/layout/Sidebar';
@@ -10,33 +11,28 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
-    // Fetch recipes on initial load
-    fetchRecipes();
+    // Fetch recipes on initial load - limit to 6 for homepage
+    fetchRecipes(6);
   }, []);
 
-  const fetchRecipes = async () => {
+  const fetchRecipes = async (limit = 6) => {
     try {
       setLoading(true);
       setError(null);
       
       const response = await api.get('/recipes', {
-        params: { page, limit: 12 }
+        params: { page: 1, limit: limit }
       });
       
       if (response.data.success) {
-        setRecipes(prevRecipes => 
-          page === 1 ? response.data.data : [...prevRecipes, ...response.data.data]
-        );
+        setRecipes(response.data.data);
         
         // Set latest recipes on first load
         if (page === 1) {
           setLatestRecipes(response.data.data.slice(0, 3));
         }
-        
-        setHasMore(response.data.data.length === 12 && response.data.meta?.has_more !== false);
       } else {
         setError('Nepavyko įkelti receptų.');
       }
@@ -48,34 +44,21 @@ const HomePage = () => {
     }
   };
 
-  const loadMoreRecipes = () => {
-    setPage(prevPage => prevPage + 1);
-    fetchRecipes();
-  };
-
   return (
     <>
       <div className="content-main">
         <RecipeList
           recipes={recipes}
-          loading={loading && page === 1}
+          loading={loading}
           error={error}
         />
         
-        {loading && page > 1 && (
-          <div className="loading-more">
-            <div className="loading-spinner"></div>
-            <p>Kraunama daugiau receptų...</p>
-          </div>
-        )}
-        
-        {hasMore && !loading && (
-          <div className="load-more-container">
-            <button className="load-more-button" onClick={loadMoreRecipes}>
-              DAUGIAU RECEPTŲ
-            </button>
-          </div>
-        )}
+        {/* More Recipes Button */}
+        <div className="more-recipes-button-container">
+          <Link to="/category/all" className="more-recipes-button">
+            Daugiau receptų
+          </Link>
+        </div>
         
         <h3 className="latest-heading">Naujausi</h3>
         
