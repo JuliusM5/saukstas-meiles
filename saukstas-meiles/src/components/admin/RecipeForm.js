@@ -19,7 +19,7 @@ const RecipeForm = ({ recipe, onSubmit, isSubmitting }) => {
   });
   const [previewImage, setPreviewImage] = useState(null);
   const fileInputRef = useRef(null);
-
+  
   // Initialize form with recipe data if editing
   useEffect(() => {
     if (recipe) {
@@ -183,17 +183,19 @@ const RecipeForm = ({ recipe, onSubmit, isSubmitting }) => {
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    // Validate form
-    if (!formData.title) {
-      alert('Prašome įvesti recepto pavadinimą.');
-      return;
-    }
-    
-    // Call onSubmit with form data
-    onSubmit(formData);
-  };
+  e.preventDefault();
+  
+  // Validate form
+  if (!formData.title) {
+    alert('Prašome įvesti recepto pavadinimą.');
+    return;
+  }
+  
+  console.log("Submitting form data:", formData);
+  
+  // Call onSubmit with form data
+  onSubmit(formData);
+    };
 
   // Available categories
   const availableCategories = [
@@ -232,41 +234,41 @@ const RecipeForm = ({ recipe, onSubmit, isSubmitting }) => {
         ></textarea>
       </div>
       
-      <div className="form-group">
-        <label>Nuotrauka</label>
-        <div className="file-upload">
-          <label className="file-upload-label">
-            <div className="file-upload-text">
-              <i className="fas fa-upload file-upload-icon"></i>
-              <span>Pasirinkite nuotrauką arba nutempkite ją čia</span>
+        <div className="form-group">
+            <label>Nuotrauka</label>
+            <div className="file-upload">
+                <label className="file-upload-label">
+                <div className="file-upload-text">
+                    <i className="fas fa-upload file-upload-icon"></i>
+                    <span>Pasirinkite nuotrauką arba nutempkite ją čia</span>
+                </div>
+                <input 
+                    type="file" 
+                    id="recipe-image" 
+                    name="image" 
+                    className="file-upload-input"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    disabled={isSubmitting}
+                    ref={fileInputRef}
+                />
+                </label>
             </div>
-            <input 
-              type="file" 
-              id="recipe-image" 
-              name="image" 
-              className="file-upload-input"
-              accept="image/*"
-              onChange={handleImageChange}
-              disabled={isSubmitting}
-              ref={fileInputRef}
-            />
-          </label>
+            
+            {previewImage && (
+                <div className="image-preview" style={{ display: 'block' }}>
+                <img src={previewImage} alt="Recipe preview" />
+                <button 
+                    type="button" 
+                    className="remove-image"
+                    onClick={removeImage}
+                    disabled={isSubmitting}
+                >
+                    <i className="fas fa-times"></i>
+                </button>
+                </div>
+            )}
         </div>
-        
-        {previewImage && (
-          <div className="image-preview" style={{ display: 'block' }}>
-            <img src={previewImage} alt="Recipe preview" />
-            <button 
-              type="button" 
-              className="remove-image"
-              onClick={removeImage}
-              disabled={isSubmitting}
-            >
-              <i className="fas fa-times"></i>
-            </button>
-          </div>
-        )}
-      </div>
       
       <div className="form-group">
         <label>Kategorijos</label>

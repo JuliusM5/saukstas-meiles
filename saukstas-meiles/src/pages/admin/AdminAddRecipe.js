@@ -55,83 +55,103 @@ const AdminAddRecipe = () => {
     }
   };
 
-  const handleSubmit = async (formData) => {
+    const handleSubmit = async (formData) => {
     try {
-      setLoading(true);
-      
-      // Create FormData for file upload
-      const data = new FormData();
-      
-      // Add all form fields
-      Object.keys(formData).forEach(key => {
-        if (key === 'categories' || key === 'tags') {
-          // Handle arrays
-          if (Array.isArray(formData[key])) {
+        setLoading(true);
+        
+        console.log("Processing form data:", formData);
+        
+        // Create FormData for file upload
+        const data = new FormData();
+        
+        // Add all form fields
+        Object.keys(formData).forEach(key => {
+        if (key === 'categories') {
+            // Handle categories array
+            if (Array.isArray(formData[key])) {
             formData[key].forEach(value => {
-              data.append(`${key}[]`, value);
+                data.append('categories[]', value);
             });
-          } else {
-            data.append(key, JSON.stringify(formData[key]));
-          }
+            }
+        } else if (key === 'ingredients') {
+            // Handle ingredients array
+            if (Array.isArray(formData[key])) {
+            formData[key].forEach(value => {
+                if (value) data.append('ingredients[]', value);
+            });
+            }
+        } else if (key === 'steps') {
+            // Handle steps array
+            if (Array.isArray(formData[key])) {
+            formData[key].forEach(value => {
+                if (value) data.append('steps[]', value);
+            });
+            }
+        } else if (key === 'tags') {
+            // Handle tags array
+            if (Array.isArray(formData[key])) {
+            formData[key].forEach(value => {
+                if (value) data.append('tags[]', value);
+            });
+            }
         } else if (key === 'image' && formData[key] instanceof File) {
-          // Handle image file
-          data.append('image', formData[key]);
-        } else if (key === 'ingredients' || key === 'steps') {
-          // Handle arrays
-          if (Array.isArray(formData[key])) {
-            formData[key].forEach(value => {
-              data.append(`${key}[]`, value);
-            });
-          }
+            // Handle image file
+            console.log("Adding image file:", formData[key].name);
+            data.append('image', formData[key]);
         } else {
-          // Handle regular fields
-          data.append(key, formData[key]);
+            // Handle regular fields
+            data.append(key, formData[key]);
         }
-      });
-      
-      let response;
-      
-      if (isEditing) {
+        });
+        
+        console.log("FormData prepared, sending to server...");
+        
+        let response;
+        
+        if (isEditing) {
         // Update existing recipe
         response = await api.put(`/admin/recipes/${id}`, data);
-      } else {
+        } else {
         // Create new recipe
         response = await api.post('/admin/recipes', data);
-      }
-      
-      if (response.data.success) {
+        }
+        
+        console.log("Server response:", response);
+        
+        if (response.data.success) {
         // Show success notification
         setNotification({
-          title: 'Sėkmė',
-          message: isEditing ? 'Receptas sėkmingai atnaujintas.' : 'Receptas sėkmingai sukurtas.',
-          type: 'success'
+            title: 'Sėkmė',
+            message: isEditing ? 'Receptas sėkmingai atnaujintas.' : 'Receptas sėkmingai sukurtas.',
+            type: 'success'
         });
         
         // Redirect to recipes list after a short delay
         setTimeout(() => {
-          navigate('/admin/recipes');
+            navigate('/admin/recipes');
         }, 1500);
-      } else {
+        } else {
         // Show error notification
         setNotification({
-          title: 'Klaida',
-          message: response.data.error || 'Klaida išsaugant receptą.',
-          type: 'error'
+            title: 'Klaida',
+            message: response.data.error || 'Klaida išsaugant receptą.',
+            type: 'error'
         });
-      }
+        }
     } catch (error) {
-      console.error('Error saving recipe:', error);
-      
-      // Show error notification
-      setNotification({
+        console.error('Error saving recipe:', error);
+        console.log("Error details:", error.response || error.message);
+        
+        // Show error notification
+        setNotification({
         title: 'Klaida',
         message: 'Klaida išsaugant receptą. Bandykite vėliau.',
         type: 'error'
-      });
+        });
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+    };
 
   return (
     <div id="admin-add-recipe">

@@ -54,21 +54,21 @@ const RecipeDetail = ({ recipe }) => {
       
       <div className="recipe-content">
         <div className="recipe-image">
-          {recipe.image ? (
-            <img 
-              src={`/img/recipes/${recipe.image}`} 
-              alt={recipe.title}
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='300' viewBox='0 0 500 300'><rect fill='%23f8f5f1' width='500' height='300'/><text fill='%237f4937' font-family='sans-serif' font-size='30' opacity='0.5' x='50%' y='50%' text-anchor='middle'>${recipe.title}</text></svg>`;
-              }}
-            />
-          ) : (
-            <div className="placeholder-image">
-              <span>Nuotrauka nepateikta</span>
-              <span>{recipe.title}</span>
-            </div>
-          )}
+            {recipe.image ? (
+                <img 
+                src={`/img/recipes/${recipe.image}`} 
+                alt={recipe.title}
+                onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='300' viewBox='0 0 500 300'%3E%3Crect fill='%23f8f5f1' width='500' height='300'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='30' text-anchor='middle' x='250' y='150'%3E${recipe.title}%3C/text%3E%3C/svg%3E`;
+                }}
+                />
+            ) : (
+                <div className="placeholder-image">
+                <span>Nuotrauka nepateikta</span>
+                <span>{recipe.title}</span>
+                </div>
+            )}
         </div>
         
         {recipe.intro && (

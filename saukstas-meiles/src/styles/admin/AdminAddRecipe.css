@@ -1,0 +1,298 @@
+/* Main Container */
+.admin-add-recipe .admin-main {
+  padding: 40px 20px;
+}
+
+/* Section Header */
+.admin-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee8e0;
+}
+
+.admin-section-title {
+  font-size: 1.5rem;
+  color: #7f4937;
+  margin: 0;
+  font-family: 'Playfair Display', serif;
+}
+
+/* Form Styles */
+.admin-form {
+  max-width: 800px;
+  margin: 0 auto;
+  background-color: white;
+  padding: 30px;
+  border-radius: 5px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.form-group {
+  margin-bottom: 25px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #3d3d3d;
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e6ddd6;
+  border-radius: 4px;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #7f4937;
+  box-shadow: 0 0 0 2px rgba(127, 73, 55, 0.1);
+}
+
+textarea.form-control {
+  min-height: 150px;
+  resize: vertical;
+}
+
+/* File Upload */
+.file-upload {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.file-upload-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 15px;
+  background-color: #f9f6f1;
+  border: 2px dashed #e6ddd6;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-upload-label:hover {
+  background-color: #f2ebe2;
+  border-color: #d6cdc6;
+}
+
+.file-upload-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.file-upload-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: #7a7a7a;
+}
+
+.file-upload-icon {
+  font-size: 1.2rem;
+  color: #7f4937;
+}
+
+/* Image Preview */
+.image-preview {
+  width: 100%;
+  margin-top: 15px;
+  position: relative;
+  display: none;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 250px;
+  border-radius: 4px;
+  display: block;
+  margin: 0 auto;
+  border: 1px solid #e6ddd6;
+}
+
+.remove-image {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.remove-image:hover {
+  background-color: rgba(207, 81, 81, 0.8);
+}
+
+/* Categories Container */
+.categories-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.category-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.category-checkbox input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.category-checkbox label {
+  margin-bottom: 0;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+/* Tags Input */
+.tags-input-container {
+  border: 1px solid #e6ddd6;
+  padding: 12px;
+  border-radius: 4px;
+  background-color: white;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-height: 50px;
+}
+
+.tag {
+  background-color: #f9f6f1;
+  padding: 5px 12px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.tag-text {
+  color: #7f4937;
+}
+
+.tag-remove {
+  background: none;
+  border: none;
+  color: #7a7a7a;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.tag-remove:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: #cf5151;
+}
+
+.tags-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 5px;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 0.95rem;
+  min-width: 120px;
+}
+
+/* Recipe Info Section */
+.recipe-info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.recipe-info .form-group {
+  margin-bottom: 0;
+}
+
+/* Ingredient List */
+.ingredient-list {
+  margin-bottom: 20px;
+}
+
+.ingredient-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.add-ingredient-btn {
+  background-color: #7f4937;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.add-ingredient-btn:hover {
+  background-color: #aa5f44;
+}
+
+.add-ingredient-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.remove-ingredient-btn {
+  background-color: #cf5151;
+  color: white;
+  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

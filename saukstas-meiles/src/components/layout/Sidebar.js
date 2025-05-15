@@ -62,7 +62,14 @@ const Sidebar = () => {
       <div className="sidebar-section">
         <h3 className="sidebar-title">Apie mane</h3>
         <div className="about-me-img">
-          <img src="/img/profile.jpg" alt="Šaukštas Meilės autorė" />
+            <img 
+                src="/img/profile.jpg" 
+                alt="Šaukštas Meilės autorė" 
+                onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`;
+                }}
+            />
         </div>
         <div className="about-me-text">
           <p>Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui.</p>
@@ -81,13 +88,21 @@ const Sidebar = () => {
             popularRecipes.map(recipe => (
               <li key={recipe.id} className="popular-post-item">
                 <Link to={`/recipe/${recipe.id}`}>
-                  <div className="popular-post-img">
-                    {recipe.image ? (
-                      <img src={`/img/recipes/${recipe.image}`} alt={recipe.title} />
-                    ) : (
-                      <div className="placeholder-image"></div>
-                    )}
-                  </div>
+                    <div className="popular-post-img">
+                        {recipe.image ? (
+                            <img 
+                            src={`/img/recipes/${recipe.image}`} 
+                            alt={recipe.title} 
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                // Simple data URI for the placeholder
+                                e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect fill='%23f8f5f1' width='60' height='60'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='12' text-anchor='middle' x='30' y='30'%3EReceptas%3C/text%3E%3C/svg%3E`;
+                            }}
+                            />
+                        ) : (
+                            <div className="placeholder-image"></div>
+                        )}
+                    </div>
                   <div className="popular-post-content">
                     <div className="popular-post-title">{recipe.title}</div>
                     <div className="popular-post-date">{new Date(recipe.created_at).toLocaleDateString('lt-LT')}</div>
