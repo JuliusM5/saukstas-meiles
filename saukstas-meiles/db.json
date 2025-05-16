@@ -1,32 +1,6 @@
 {
   "recipes": [
     {
-      "title": "erwtw",
-      "intro": "",
-      "categories": [
-        "Gėrimai ir kokteiliai"
-      ],
-      "prep_time": "65",
-      "cook_time": "6",
-      "servings": "1",
-      "ingredients": [
-        "dfg",
-        "dfg"
-      ],
-      "steps": [
-        "dfgdfg",
-        "dfg",
-        "dfg",
-        "kkk",
-        "kk"
-      ],
-      "notes": "asdasd",
-      "status": "published",
-      "image": "null",
-      "id": "1747339247518",
-      "created_at": "2025-05-15T20:00:47.518Z"
-    },
-    {
       "title": "asdasdasdasd",
       "intro": "eurm was a male Hutt who lived life as a notorious murderer prior to the Second Galactic Civil War. His criminal tendencies were curtailedeurm was a male Hutt who lived life as a notorious murderer prior to the Second Galactic Civil War. His criminal tendencies were curtailed",
       "categories": [
@@ -179,22 +153,6 @@
       "created_at": "2025-05-15T20:06:44.978Z"
     },
     {
-      "title": "asdasd",
-      "intro": "asdasdasdsa",
-      "image": "null",
-      "categories": [
-        "Kiaušiniai",
-        "Mėsa"
-      ],
-      "prep_time": "",
-      "cook_time": "",
-      "servings": "",
-      "notes": "",
-      "status": "published",
-      "id": "1747340040450",
-      "created_at": "2025-05-15T20:14:00.450Z"
-    },
-    {
       "title": "dfdfhdfhdfg",
       "intro": "sdfsdfsdfsd",
       "categories": [
@@ -281,7 +239,7 @@
     },
     {
       "name": "Gėrimai ir kokteiliai",
-      "count": 3
+      "count": 2
     },
     {
       "name": "Iš močiutės virtuvės",
@@ -289,7 +247,7 @@
     },
     {
       "name": "Kiaušiniai",
-      "count": 3
+      "count": 2
     },
     {
       "name": "Kruopos ir grūdai",
@@ -297,7 +255,7 @@
     },
     {
       "name": "Mėsa",
-      "count": 4
+      "count": 3
     },
     {
       "name": "Sriubos",

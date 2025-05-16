@@ -81,8 +81,8 @@ const Sidebar = () => {
                   ? `/img/about/${aboutData.sidebar_image}` 
                   : (aboutData && aboutData.image 
                     ? `/img/about/${aboutData.image}` 
-                    : '/img/profile-placeholder.jpg')} 
-                alt="Šaukštas Meilės autorė" 
+                    : `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`)} 
+                alt="Šaukštas Meilės autorė"  
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`;
