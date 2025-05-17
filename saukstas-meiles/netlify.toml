@@ -1,7 +1,6 @@
 [build]
-  # Adjust these settings based on your project type
-  command = "npm run build"  # or your build command
-  publish = "build"  # or your output directory (dist, public, etc.)
+  command = "npm run build"
+  publish = "."
 
 [dev]
   command = "npm start"  # or whatever command starts your dev server
