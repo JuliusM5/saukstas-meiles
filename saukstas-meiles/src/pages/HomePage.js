@@ -10,6 +10,7 @@ const HomePage = () => {
   const [latestRecipes, setLatestRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [email, setEmail] = useState('');
 
   useEffect(() => {
     // Fetch exactly 9 recipes for the homepage (3x3 grid)
@@ -41,6 +42,26 @@ const HomePage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNewsletterSubmit = (e) => {
+    e.preventDefault();
+    
+    if (!email) {
+      alert('Prašome įvesti el. pašto adresą.');
+      return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert('Prašome įvesti teisingą el. pašto adresą.');
+      return;
+    }
+    
+    // In a real app, we would send this to the API
+    alert(`Ačiū už prenumeratą! Naujienlaiškis bus siunčiamas adresu: ${email}`);
+    setEmail('');
   };
 
   return (
@@ -85,6 +106,37 @@ const HomePage = () => {
               </div>
             </div>
           ))}
+        </div>
+        
+        {/* Newsletter Section */}
+        <div className="main-newsletter-section">
+          <h3 className="latest-heading">Prenumeruokite naujienlaiškį</h3>
+          <div className="main-newsletter-container">
+            <div className="newsletter-icon">
+              <i className="fas fa-envelope"></i>
+            </div>
+            <div className="main-newsletter-content">
+              <h4>Gaukite naujausius receptus</h4>
+              <p>Užsiprenumeruokite ir gaukite naujausius receptus, kulinarinius patarimus ir sezoninius įkvėpimus tiesiai į savo pašto dėžutę!</p>
+              <form className="main-newsletter-form" onSubmit={handleNewsletterSubmit}>
+                <div className="form-input-group">
+                  <input 
+                    type="email" 
+                    name="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="newsletter-input" 
+                    placeholder="Jūsų el. paštas" 
+                    required 
+                  />
+                  <button type="submit" className="newsletter-submit-button">Prenumeruoti</button>
+                </div>
+                <div className="newsletter-privacy">
+                  <small>Mes gerbiame jūsų privatumą. Jūsų duomenimis niekada nesidalinsime su trečiosiomis šalimis.</small>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
       

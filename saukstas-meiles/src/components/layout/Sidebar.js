@@ -6,7 +6,6 @@ import '../../styles/Sidebar.css';
 const Sidebar = () => {
   const [popularRecipes, setPopularRecipes] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [email, setEmail] = useState('');
   const [aboutData, setAboutData] = useState(null);
 
   useEffect(() => {
@@ -50,26 +49,6 @@ const Sidebar = () => {
     fetchCategories();
     fetchAboutData();
   }, []);
-
-  const handleNewsletterSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!email) {
-      alert('Prašome įvesti el. pašto adresą.');
-      return;
-    }
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      alert('Prašome įvesti teisingą el. pašto adresą.');
-      return;
-    }
-    
-    // In a real app, we would send this to the API
-    alert(`Ačiū už prenumeratą! Naujienlaiškis bus siunčiamas adresu: ${email}`);
-    setEmail('');
-  };
 
   return (
     <aside className="sidebar">
@@ -145,23 +124,6 @@ const Sidebar = () => {
             </li>
           ))}
         </ul>
-      </div>
-      
-      <div className="sidebar-section">
-        <h3 className="sidebar-title">Naujienlaiškis</h3>
-        <p className="about-me-text">Užsiprenumeruokite ir gaukite naujausius receptus tiesiai į savo pašto dėžutę!</p>
-        <form className="newsletter-form" onSubmit={handleNewsletterSubmit}>
-          <input 
-            type="email" 
-            name="email" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="newsletter-input" 
-            placeholder="Jūsų el. paštas" 
-            required 
-          />
-          <button type="submit" className="newsletter-button">Prenumeruoti</button>
-        </form>
       </div>
     </aside>
   );
