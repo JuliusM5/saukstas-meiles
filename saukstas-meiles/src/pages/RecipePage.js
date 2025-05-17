@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../utils/api';
+import NewsletterSubscription from '../components/NewsletterSubscription';
 import RecipeDetail from '../components/recipes/RecipeDetail';
 import CommentList from '../components/comments/CommentList';
 import CommentForm from '../components/comments/CommentForm';
@@ -97,6 +98,9 @@ const RecipePage = () => {
     <>
       <div className="content-main">
         <RecipeDetail recipe={recipe} />
+        
+        {/* Add Newsletter Subscription Component */}
+        <NewsletterSubscription />
         
         <div className="recipe-comments">
           <h3>Komentarai</h3>

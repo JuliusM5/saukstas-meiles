@@ -6,46 +6,67 @@ const middlewares = jsonServer.defaults();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const sgMail = require('@sendgrid/mail'); // Use SendGrid instead of nodemailer
+const nodemailer = require('nodemailer'); // Use nodemailer for email
 
-// Set your SendGrid API key (replace with your actual key)
-sgMail.setApiKey('YOUR_SENDGRID_API_KEY');
+// Create a transporter object using your email provider's details
+const transporter = nodemailer.createTransport({
+  host: "smtp.your-domain.com", // Replace with your SMTP server (e.g., smtp.gmail.com)
+  port: 587,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: "your-email@your-domain.com", // Replace with your email
+    pass: "your-email-password" // Replace with your password or app password
+  }
+});
+
+// Verify connection to email server
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('SMTP server connection error:', error);
+  } else {
+    console.log("SMTP server is ready to send emails");
+  }
+});
 
 // Create a file to store the about page data
 const aboutFilePath = path.join(__dirname, 'about.json');
 // Create a file to store newsletter subscribers
 const subscribersFilePath = path.join(__dirname, 'subscribers.json');
 
-// Function to send newsletter emails using SendGrid
+// Function to send newsletter emails using nodemailer
 const sendNewsletterEmail = async (subject, recipients) => {
   try {
-    const batchSize = 50; // SendGrid allows up to 1000 recipients per batch, but smaller is safer
+    const batchSize = 20; // Process in smaller batches to avoid overloading
     let successCount = 0;
     
     // Process recipients in batches
     for (let i = 0; i < recipients.length; i += batchSize) {
       const batch = recipients.slice(i, i + batchSize);
       
-      // Create personalized messages for each recipient in the batch
-      const messages = batch.map(recipient => ({
-        to: recipient.email,
-        from: 'your-verified-sender@example.com', // Replace with your verified sender email
-        subject: subject,
-        html: recipient.htmlContent,
-      }));
-      
-      try {
-        // Send the batch
-        await sgMail.send(messages);
-        console.log(`Sent batch ${Math.floor(i/batchSize) + 1} with ${batch.length} emails`);
-        successCount += batch.length;
-      } catch (err) {
-        console.error(`Failed to send batch ${Math.floor(i/batchSize) + 1}:`, err);
+      // Send emails to each recipient in the batch
+      for (const recipient of batch) {
+        try {
+          // Send mail with defined transport object
+          const info = await transporter.sendMail({
+            from: '"Šaukštas Meilės" <your-email@your-domain.com>', // Replace with your email
+            to: recipient.email,
+            subject: subject,
+            html: recipient.htmlContent
+          });
+          
+          console.log(`Message sent: ${info.messageId} to ${recipient.email}`);
+          successCount++;
+          
+          // Add a short delay between emails to avoid being flagged as spam
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (err) {
+          console.error(`Failed to send email to ${recipient.email}:`, err);
+        }
       }
       
-      // Add a small delay between batches to avoid rate limits
+      // Add a delay between batches
       if (i + batchSize < recipients.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
     
@@ -131,7 +152,7 @@ const saveSubscribers = (data) => {
   }
 };
 
-// Email template helper functions
+// Email template for recipe notifications
 const getNewsletterTemplate = (recipe, recipientEmail) => {
   const recipeUrl = `http://localhost:3000/recipe/${recipe.id}`;
   const unsubscribeUrl = `http://localhost:3000/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
@@ -241,6 +262,7 @@ const getNewsletterTemplate = (recipe, recipientEmail) => {
   `;
 };
 
+// Template for manual newsletters
 const getManualNewsletterTemplate = (subject, htmlContent, recipientEmail) => {
   const unsubscribeUrl = `http://localhost:3000/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
   
@@ -511,6 +533,8 @@ server.use((req, res, next) => {
   next();
 });
 
+// ==================== NEWSLETTER API ROUTES ====================
+
 // Endpoint to subscribe to newsletter
 server.post('/api/newsletter/subscribe', (req, res) => {
   try {
@@ -667,7 +691,7 @@ server.delete('/admin/newsletter/subscribers/:email', (req, res) => {
 });
 
 // Send manual newsletter
-server.post('/admin/newsletter/send', (req, res) => {
+server.post('/admin/newsletter/send', async (req, res) => {
   try {
     const { subject, content } = req.body;
     
@@ -695,28 +719,20 @@ server.post('/admin/newsletter/send', (req, res) => {
     }));
     
     // Send the newsletter
-    sendNewsletterEmail(subject, recipients)
-      .then(success => {
-        if (success) {
-          console.log(`Manual newsletter sent to ${subscribersData.subscribers.length} subscribers`);
-          return res.jsonp({
-            success: true,
-            message: `Naujienlaiškis sėkmingai išsiųstas ${subscribersData.subscribers.length} prenumeratoriams.`
-          });
-        } else {
-          return res.status(500).jsonp({
-            success: false,
-            error: 'Klaida siunčiant naujienlaiškį. Bandykite vėliau.'
-          });
-        }
-      })
-      .catch(error => {
-        console.error('Error sending manual newsletter:', error);
-        return res.status(500).jsonp({
-          success: false,
-          error: 'Klaida siunčiant naujienlaiškį. Bandykite vėliau.'
-        });
+    const success = await sendNewsletterEmail(subject, recipients);
+    
+    if (success) {
+      console.log(`Manual newsletter sent to ${subscribersData.subscribers.length} subscribers`);
+      return res.jsonp({
+        success: true,
+        message: `Naujienlaiškis sėkmingai išsiųstas ${subscribersData.subscribers.length} prenumeratoriams.`
       });
+    } else {
+      return res.status(500).jsonp({
+        success: false,
+        error: 'Klaida siunčiant naujienlaiškį. Bandykite vėliau.'
+      });
+    }
   } catch (error) {
     console.error('Error in sending manual newsletter:', error);
     return res.status(500).jsonp({
@@ -725,6 +741,123 @@ server.post('/admin/newsletter/send', (req, res) => {
     });
   }
 });
+
+// Endpoint to send a test newsletter email
+server.post('/admin/newsletter/test', async (req, res) => {
+  try {
+    const { email, recipeId } = req.body;
+    
+    if (!email || !recipeId) {
+      return res.status(400).jsonp({
+        success: false,
+        error: 'Reikalingas el. pašto adresas ir recepto ID.'
+      });
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).jsonp({
+        success: false,
+        error: 'Prašome įvesti teisingą el. pašto adresą.'
+      });
+    }
+    
+    // Get the recipe
+    const recipe = router.db.get('recipes').find({ id: recipeId }).value();
+    
+    if (!recipe) {
+      return res.status(404).jsonp({
+        success: false,
+        error: 'Receptas nerastas.'
+      });
+    }
+    
+    // Prepare HTML content using the template
+    const htmlContent = getNewsletterTemplate(recipe, email);
+    
+    try {
+      // Send mail with defined transport object
+      const info = await transporter.sendMail({
+        from: '"Šaukštas Meilės" <your-email@your-domain.com>', // Replace with your email
+        to: email,
+        subject: `Naujas receptas: ${recipe.title}`,
+        html: htmlContent
+      });
+      
+      console.log(`Test email sent: ${info.messageId} to ${email}`);
+      
+      return res.jsonp({
+        success: true,
+        message: 'Testinis laiškas sėkmingai išsiųstas.'
+      });
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      return res.status(500).jsonp({
+        success: false,
+        error: 'Klaida siunčiant testinį laišką. Bandykite vėliau.'
+      });
+    }
+  } catch (error) {
+    console.error('Error in test email endpoint:', error);
+    return res.status(500).jsonp({
+      success: false,
+      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+    });
+  }
+});
+
+// Endpoint to import subscribers from CSV
+server.post('/admin/newsletter/import', (req, res) => {
+  try {
+    const { emails } = req.body;
+    
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).jsonp({
+        success: false,
+        error: 'Nėra el. pašto adresų importavimui.'
+      });
+    }
+    
+    // Get current subscribers
+    const data = getSubscribers();
+    
+    // Track new subscribers
+    let importedCount = 0;
+    
+    // Add new subscribers
+    emails.forEach(email => {
+      // Simple validation and deduplication
+      if (email && !data.subscribers.includes(email) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        data.subscribers.push(email.trim());
+        importedCount++;
+      }
+    });
+    
+    // Save updated list
+    if (saveSubscribers(data)) {
+      console.log(`Imported ${importedCount} newsletter subscribers`);
+      return res.jsonp({
+        success: true,
+        message: `Sėkmingai importuota ${importedCount} el. pašto adresų.`,
+        imported: importedCount
+      });
+    } else {
+      return res.status(500).jsonp({
+        success: false,
+        error: 'Klaida išsaugant prenumeratorius. Bandykite vėliau.'
+      });
+    }
+  } catch (error) {
+    console.error('Error importing subscribers:', error);
+    return res.status(500).jsonp({
+      success: false,
+      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+    });
+  }
+});
+
+// ==================== ORIGINAL API ROUTES ====================
 
 // Endpoint to get about page data
 server.get('/about', (req, res) => {
@@ -1254,24 +1387,13 @@ server.post('/admin/recipes', upload.single('image'), (req, res) => {
     // Save to database
     router.db.get('recipes').push(newRecipe).write();
     
-    // Update categories list after adding a recipe
-    updateCategoriesList();
-    
-    // Verify it was saved
-    const savedRecipe = router.db.get('recipes').find({ id: newRecipe.id }).value();
-    console.log("Recipe saved in database:", savedRecipe ? "Yes" : "No");
-    
-    // Show database state
-    const allRecipes = router.db.get('recipes').value();
-    console.log(`Database now has ${allRecipes.length} recipes`);
-    
     // Send newsletter if the recipe is published
     if (newRecipe.status === 'published') {
       // Get subscribers
       const subscribersData = getSubscribers();
       
       if (subscribersData.subscribers.length > 0) {
-        // Create email content and prepare recipients
+        // Create email subject
         const emailSubject = `Naujas receptas: ${newRecipe.title}`;
         
         // Prepare recipients with personalized content
@@ -1291,6 +1413,17 @@ server.post('/admin/recipes', upload.single('image'), (req, res) => {
           });
       }
     }
+    
+    // Update categories list after adding a recipe
+    updateCategoriesList();
+    
+    // Verify it was saved
+    const savedRecipe = router.db.get('recipes').find({ id: newRecipe.id }).value();
+    console.log("Recipe saved in database:", savedRecipe ? "Yes" : "No");
+    
+    // Show database state
+    const allRecipes = router.db.get('recipes').value();
+    console.log(`Database now has ${allRecipes.length} recipes`);
     
     res.jsonp({
       success: true,
@@ -1485,6 +1618,7 @@ server.listen(port, () => {
   console.log(`http://localhost:${port}/api/newsletter/unsubscribe`);
   console.log(`http://localhost:${port}/admin/newsletter/subscribers`);
   console.log(`http://localhost:${port}/admin/newsletter/send`);
+  console.log(`http://localhost:${port}/admin/newsletter/test`);
   console.log(`http://localhost:${port}/api/auth/login`);
   console.log(`http://localhost:${port}/auth/login`);
   console.log(`http://localhost:${port}/admin/dashboard/stats`);

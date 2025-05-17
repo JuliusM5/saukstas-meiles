@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { api } from '../../utils/api';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -15,9 +16,16 @@ const AdminNewsletter = () => {
   const [newsletterSubject, setNewsletterSubject] = useState('');
   const [newsletterContent, setNewsletterContent] = useState('');
   const [sendingNewsletter, setSendingNewsletter] = useState(false);
+  
+  // State for sending test email
+  const [testEmail, setTestEmail] = useState('');
+  const [selectedRecipe, setSelectedRecipe] = useState('');
+  const [availableRecipes, setAvailableRecipes] = useState([]);
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     fetchSubscribers();
+    fetchRecipes();
   }, []);
 
   const fetchSubscribers = async () => {
@@ -48,6 +56,25 @@ const AdminNewsletter = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const fetchRecipes = async () => {
+    try {
+      const response = await api.get('/admin/recipes', {
+        params: { status: 'published' }
+      });
+      
+      if (response.data.success) {
+        setAvailableRecipes(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching recipes:', error);
+      setNotification({
+        title: 'Klaida',
+        message: 'Klaida įkeliant receptus. Bandykite vėliau.',
+        type: 'error'
+      });
     }
   };
 
@@ -134,6 +161,140 @@ const AdminNewsletter = () => {
       setSendingNewsletter(false);
     }
   };
+  
+  const handleSendTestEmail = async (e) => {
+    e.preventDefault();
+    
+    if (!testEmail || !selectedRecipe) {
+      setNotification({
+        title: 'Klaida',
+        message: 'Prašome pasirinkti receptą ir įvesti el. paštą.',
+        type: 'error'
+      });
+      return;
+    }
+    
+    try {
+      setSendingTest(true);
+      
+      const response = await api.post('/admin/newsletter/test', {
+        email: testEmail,
+        recipeId: selectedRecipe
+      });
+      
+      if (response.data.success) {
+        setNotification({
+          title: 'Sėkmė',
+          message: 'Testinis laiškas sėkmingai išsiųstas.',
+          type: 'success'
+        });
+        
+        // Reset form
+        setTestEmail('');
+        setSelectedRecipe('');
+      } else {
+        setNotification({
+          title: 'Klaida',
+          message: response.data.error || 'Klaida siunčiant testinį laišką.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      setNotification({
+        title: 'Klaida',
+        message: 'Klaida siunčiant testinį laišką. Bandykite vėliau.',
+        type: 'error'
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+  
+  const handleCsvExport = () => {
+    if (subscribers.length === 0) {
+      setNotification({
+        title: 'Klaida',
+        message: 'Nėra prenumeratorių eksportui.',
+        type: 'error'
+      });
+      return;
+    }
+    
+    // Create CSV content
+    const csvContent = 'data:text/csv;charset=utf-8,' + subscribers.join('\n');
+    
+    // Create download link
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `newsletter_subscribers_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    
+    // Trigger download
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+  };
+  
+  const handleCsvImport = (e) => {
+    const file = e.target.files[0];
+    
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const csv = event.target.result;
+        const emails = csv.split(/\r\n|\n/).filter(email => {
+          // Simple validation: non-empty and looks like an email
+          return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+        });
+        
+        if (emails.length === 0) {
+          setNotification({
+            title: 'Klaida',
+            message: 'Nepavyko rasti teisingų el. pašto adresų.',
+            type: 'error'
+          });
+          return;
+        }
+        
+        // Send to server
+        const response = await api.post('/admin/newsletter/import', { emails });
+        
+        if (response.data.success) {
+          setNotification({
+            title: 'Sėkmė',
+            message: `Sėkmingai importuota ${response.data.imported} el. pašto adresų.`,
+            type: 'success'
+          });
+          
+          // Refresh subscribers list
+          fetchSubscribers();
+        } else {
+          setNotification({
+            title: 'Klaida',
+            message: response.data.error || 'Klaida importuojant prenumeratorius.',
+            type: 'error'
+          });
+        }
+      } catch (error) {
+        console.error('Error importing subscribers:', error);
+        setNotification({
+          title: 'Klaida',
+          message: 'Klaida importuojant prenumeratorius. Bandykite vėliau.',
+          type: 'error'
+        });
+      }
+      
+      // Reset file input
+      e.target.value = '';
+    };
+    
+    reader.readAsText(file);
+  };
 
   return (
     <div id="admin-newsletter">
@@ -142,6 +303,28 @@ const AdminNewsletter = () => {
       <main className="admin-main container">
         <div className="admin-section-header">
           <h2 className="admin-section-title">Naujienlaiškio prenumeratoriai</h2>
+          <div className="newsletter-actions">
+            <button 
+              className="submit-button"
+              onClick={handleCsvExport}
+              disabled={subscribers.length === 0}
+            >
+              Eksportuoti CSV
+            </button>
+            
+            <div className="csv-import">
+              <input 
+                type="file" 
+                id="csv-import" 
+                accept=".csv" 
+                onChange={handleCsvImport}
+                className="hidden-input"
+              />
+              <label htmlFor="csv-import" className="submit-button">
+                Importuoti CSV
+              </label>
+            </div>
+          </div>
         </div>
         
         <div className="admin-section">
@@ -192,6 +375,57 @@ const AdminNewsletter = () => {
           )}
         </div>
 
+        {/* Test Email Section */}
+        <div className="admin-section">
+          <div className="admin-section-header">
+            <h2 className="admin-section-title">Siųsti bandomąjį naujienlaiškį</h2>
+          </div>
+          
+          <form onSubmit={handleSendTestEmail} className="newsletter-form">
+            <div className="form-group">
+              <label htmlFor="test-email">El. paštas</label>
+              <input
+                type="email"
+                id="test-email"
+                className="form-control"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                required
+                disabled={sendingTest}
+                placeholder="Įveskite savo el. paštą testavimui"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="recipe-select">Pasirinkite receptą</label>
+              <select
+                id="recipe-select"
+                className="form-control"
+                value={selectedRecipe}
+                onChange={(e) => setSelectedRecipe(e.target.value)}
+                required
+                disabled={sendingTest}
+              >
+                <option value="">-- Pasirinkite receptą --</option>
+                {availableRecipes.map(recipe => (
+                  <option key={recipe.id} value={recipe.id}>
+                    {recipe.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <button
+              type="submit"
+              className="submit-button"
+              disabled={sendingTest || !testEmail || !selectedRecipe}
+            >
+              {sendingTest ? 'Siunčiama...' : 'Siųsti bandomąjį laišką'}
+            </button>
+          </form>
+        </div>
+
+        {/* Manual Newsletter Section */}
         <div className="admin-section">
           <div className="admin-section-header">
             <h2 className="admin-section-title">Siųsti naujienlaiškį</h2>

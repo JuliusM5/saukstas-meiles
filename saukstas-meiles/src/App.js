@@ -38,9 +38,8 @@ function App() {
           <Route path="/admin/recipes" element={<PrivateRoute><AdminRecipes /></PrivateRoute>} />
           <Route path="/admin/recipes/add" element={<PrivateRoute><AdminAddRecipe /></PrivateRoute>} />
           <Route path="/admin/recipes/edit/:id" element={<PrivateRoute><AdminAddRecipe /></PrivateRoute>} />
-          <Route path="/admin/about" element={<PrivateRoute><AdminAbout /></PrivateRoute>} /> {/* Add this line */}
-          <Route path="/admin/newsletter" element={<PrivateRoute><AdminNewsletter /></PrivateRoute>} />
-
+          <Route path="/admin/about" element={<PrivateRoute><AdminAbout /></PrivateRoute>} />
+          <Route path="/admin/newsletter" element={<PrivateRoute><AdminNewsletter /></PrivateRoute>} /> {/* Make sure this line exists */}
           {/* Not found route */}
           <Route path="*" element={<PageWrapper><NotFound /></PageWrapper>} />
         </Routes>
