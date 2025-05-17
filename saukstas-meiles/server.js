@@ -1,3 +1,6 @@
+console.log('GMAIL_USER:', process.env.GMAIL_USER);
+console.log('GMAIL_APP_PASSWORD length:', process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0);
+require('dotenv').config();
 const jsonServer = require('json-server');
 const express = require('express');
 const server = jsonServer.create();
@@ -10,12 +13,10 @@ const nodemailer = require('nodemailer'); // Use nodemailer for email
 
 // Create a transporter object using your email provider's details
 const transporter = nodemailer.createTransport({
-  host: "smtp.your-domain.com", // Replace with your SMTP server (e.g., smtp.gmail.com)
-  port: 587,
-  secure: false, // true for 465, false for other ports
+  service: 'gmail', // Use a predefined service
   auth: {
-    user: "your-email@your-domain.com", // Replace with your email
-    pass: "your-email-password" // Replace with your password or app password
+    user: 'your-actual-gmail@gmail.com', // Your actual Gmail
+    pass: 'your-app-password' // Generate an app password in your Google account
   }
 });
 
@@ -48,7 +49,7 @@ const sendNewsletterEmail = async (subject, recipients) => {
         try {
           // Send mail with defined transport object
           const info = await transporter.sendMail({
-            from: '"Šaukštas Meilės" <your-email@your-domain.com>', // Replace with your email
+            from: '"Šaukštas Meilės" <owl.business.tree@gmail.com>', // Replace with your email
             to: recipient.email,
             subject: subject,
             html: recipient.htmlContent
