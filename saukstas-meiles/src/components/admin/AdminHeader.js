@@ -61,7 +61,15 @@ const AdminHeader = ({ activePage }) => {
                 Nuotraukos
               </Link>
             </li>
-            <li>
+              <li>
+                <Link 
+                  to="/admin/newsletter" 
+                  className={activePage === 'newsletter' ? 'active' : ''}
+                >
+                  Naujienlaiškis
+                </Link>
+              </li>
+                <li>
               <Link 
                 to="/"
                 onClick={(e) => {

@@ -14,6 +14,8 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminRecipes from './pages/admin/AdminRecipes';
 import AdminAddRecipe from './pages/admin/AdminAddRecipe';
 import AdminAbout from './pages/admin/AdminAbout'; // New import
+import AdminNewsletter from './pages/admin/AdminNewsletter';
+import UnsubscribePage from './pages/UnsubscribePage';
 import NotFound from './pages/NotFound';
 import PrivateRoute from './components/auth/PrivateRoute';
 
@@ -28,6 +30,7 @@ function App() {
           <Route path="/recipe/:id" element={<PageWrapper><RecipePage /></PageWrapper>} />
           <Route path="/category/:name" element={<PageWrapper><CategoryPage /></PageWrapper>} />
           <Route path="/category/all" element={<PageWrapper><AllRecipesPage /></PageWrapper>} />
+          <Route path="/unsubscribe" element={<PageWrapper><UnsubscribePage /></PageWrapper>} />
           
           {/* Admin routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -36,7 +39,8 @@ function App() {
           <Route path="/admin/recipes/add" element={<PrivateRoute><AdminAddRecipe /></PrivateRoute>} />
           <Route path="/admin/recipes/edit/:id" element={<PrivateRoute><AdminAddRecipe /></PrivateRoute>} />
           <Route path="/admin/about" element={<PrivateRoute><AdminAbout /></PrivateRoute>} /> {/* Add this line */}
-          
+          <Route path="/admin/newsletter" element={<PrivateRoute><AdminNewsletter /></PrivateRoute>} />
+
           {/* Not found route */}
           <Route path="*" element={<PageWrapper><NotFound /></PageWrapper>} />
         </Routes>

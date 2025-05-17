@@ -44,14 +44,14 @@ const HomePage = () => {
     }
   };
 
-  const handleNewsletterSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!email) {
-      alert('Prašome įvesti el. pašto adresą.');
-      return;
-    }
-    
+  const handleNewsletterSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!email) {
+    alert('Prašome įvesti el. pašto adresą.');
+    return;
+  }
+  
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -59,9 +59,20 @@ const HomePage = () => {
       return;
     }
     
-    // In a real app, we would send this to the API
-    alert(`Ačiū už prenumeratą! Naujienlaiškis bus siunčiamas adresu: ${email}`);
-    setEmail('');
+    try {
+      // Send the subscription request to the API
+      const response = await api.post('/api/newsletter/subscribe', { email });
+      
+      if (response.data.success) {
+        alert(response.data.message);
+        setEmail('');
+      } else {
+        alert(response.data.error || 'Klaida išsaugant prenumeratą. Bandykite vėliau.');
+      }
+    } catch (error) {
+      console.error('Error subscribing to newsletter:', error);
+      alert('Klaida išsaugant prenumeratą. Bandykite vėliau.');
+    }
   };
 
   return (

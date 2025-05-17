@@ -6,9 +6,56 @@ const middlewares = jsonServer.defaults();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sgMail = require('@sendgrid/mail'); // Use SendGrid instead of nodemailer
+
+// Set your SendGrid API key (replace with your actual key)
+sgMail.setApiKey('YOUR_SENDGRID_API_KEY');
 
 // Create a file to store the about page data
 const aboutFilePath = path.join(__dirname, 'about.json');
+// Create a file to store newsletter subscribers
+const subscribersFilePath = path.join(__dirname, 'subscribers.json');
+
+// Function to send newsletter emails using SendGrid
+const sendNewsletterEmail = async (subject, recipients) => {
+  try {
+    const batchSize = 50; // SendGrid allows up to 1000 recipients per batch, but smaller is safer
+    let successCount = 0;
+    
+    // Process recipients in batches
+    for (let i = 0; i < recipients.length; i += batchSize) {
+      const batch = recipients.slice(i, i + batchSize);
+      
+      // Create personalized messages for each recipient in the batch
+      const messages = batch.map(recipient => ({
+        to: recipient.email,
+        from: 'your-verified-sender@example.com', // Replace with your verified sender email
+        subject: subject,
+        html: recipient.htmlContent,
+      }));
+      
+      try {
+        // Send the batch
+        await sgMail.send(messages);
+        console.log(`Sent batch ${Math.floor(i/batchSize) + 1} with ${batch.length} emails`);
+        successCount += batch.length;
+      } catch (err) {
+        console.error(`Failed to send batch ${Math.floor(i/batchSize) + 1}:`, err);
+      }
+      
+      // Add a small delay between batches to avoid rate limits
+      if (i + batchSize < recipients.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    console.log(`Successfully sent ${successCount} out of ${recipients.length} emails`);
+    return successCount > 0;
+  } catch (error) {
+    console.error('Error sending newsletter:', error);
+    return false;
+  }
+};
 
 // Helper function to read about data
 const getAboutData = () => {
@@ -58,10 +105,224 @@ const saveAboutData = (data) => {
   }
 };
 
+// Helper function to read subscribers data
+const getSubscribers = () => {
+  try {
+    if (fs.existsSync(subscribersFilePath)) {
+      const data = fs.readFileSync(subscribersFilePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Error reading subscribers data:', error);
+  }
+  
+  // Default data if file doesn't exist or can't be read
+  return { subscribers: [] };
+};
+
+// Helper function to save subscribers data
+const saveSubscribers = (data) => {
+  try {
+    fs.writeFileSync(subscribersFilePath, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error saving subscribers data:', error);
+    return false;
+  }
+};
+
+// Email template helper functions
+const getNewsletterTemplate = (recipe, recipientEmail) => {
+  const recipeUrl = `http://localhost:3000/recipe/${recipe.id}`;
+  const unsubscribeUrl = `http://localhost:3000/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Naujas receptas: ${recipe.title}</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          line-height: 1.6;
+          color: #333;
+          margin: 0;
+          padding: 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+        .header {
+          text-align: center;
+          padding: 20px 0;
+          border-bottom: 2px solid #eee8e0;
+        }
+        .logo {
+          font-family: 'Playfair Display', serif;
+          font-size: 24px;
+          color: #7f4937;
+        }
+        .recipe-title {
+          font-size: 24px;
+          color: #7f4937;
+          margin: 20px 0;
+          text-align: center;
+        }
+        .recipe-image {
+          width: 100%;
+          max-height: 300px;
+          object-fit: cover;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .recipe-intro {
+          font-style: italic;
+          color: #7f4937;
+          margin-bottom: 20px;
+          padding-left: 15px;
+          border-left: 3px solid #7f4937;
+        }
+        .cta-button {
+          display: inline-block;
+          background-color: #7f4937;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 4px;
+          margin: 20px 0;
+        }
+        .footer {
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 1px solid #eee8e0;
+          text-align: center;
+          font-size: 12px;
+          color: #7a7a7a;
+        }
+        .unsubscribe {
+          color: #7f4937;
+          text-decoration: underline;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">Šaukštas Meilės</div>
+        </div>
+        
+        <h1 class="recipe-title">${recipe.title}</h1>
+        
+        ${recipe.image ? 
+          `<img src="http://localhost:3000/img/recipes/${recipe.image}" alt="${recipe.title}" class="recipe-image">` : 
+          ''}
+        
+        ${recipe.intro ? 
+          `<div class="recipe-intro">${recipe.intro}</div>` : 
+          ''}
+        
+        <div style="text-align: center;">
+          <a href="${recipeUrl}" class="cta-button">Skaityti visą receptą</a>
+        </div>
+        
+        <div class="footer">
+          <p>Šaukštas Meilės - naminiai lietuviški receptai su meile</p>
+          <p>
+            <a href="${unsubscribeUrl}" class="unsubscribe">Atsisakyti naujienlaiškio prenumeratos</a>
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const getManualNewsletterTemplate = (subject, htmlContent, recipientEmail) => {
+  const unsubscribeUrl = `http://localhost:3000/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          line-height: 1.6;
+          color: #333;
+          margin: 0;
+          padding: 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+        .header {
+          text-align: center;
+          padding: 20px 0;
+          border-bottom: 2px solid #eee8e0;
+        }
+        .logo {
+          font-family: 'Playfair Display', serif;
+          font-size: 24px;
+          color: #7f4937;
+        }
+        .content {
+          margin: 30px 0;
+        }
+        .footer {
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 1px solid #eee8e0;
+          text-align: center;
+          font-size: 12px;
+          color: #7a7a7a;
+        }
+        .unsubscribe {
+          color: #7f4937;
+          text-decoration: underline;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">Šaukštas Meilės</div>
+        </div>
+        
+        <div class="content">
+          ${htmlContent}
+        </div>
+        
+        <div class="footer">
+          <p>Šaukštas Meilės - naminiai lietuviški receptai su meile</p>
+          <p>
+            <a href="${unsubscribeUrl}" class="unsubscribe">Atsisakyti naujienlaiškio prenumeratos</a>
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
 // Initialize the about.json file if it doesn't exist
 if (!fs.existsSync(aboutFilePath)) {
   saveAboutData(getAboutData());
   console.log('Created default about.json file');
+}
+
+// Initialize the subscribers.json file if it doesn't exist
+if (!fs.existsSync(subscribersFilePath)) {
+  saveSubscribers({ subscribers: [] });
+  console.log('Created default subscribers.json file');
 }
 
 // Function to update categories list based on recipes
@@ -248,6 +509,221 @@ server.use((req, res, next) => {
     req.body.created_at = new Date().toISOString();
   }
   next();
+});
+
+// Endpoint to subscribe to newsletter
+server.post('/api/newsletter/subscribe', (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).jsonp({
+        success: false,
+        error: 'Prašome įvesti teisingą el. pašto adresą.'
+      });
+    }
+    
+    // Get current subscribers
+    const data = getSubscribers();
+    
+    // Check if email already exists
+    if (data.subscribers.includes(email)) {
+      return res.jsonp({
+        success: true,
+        message: 'Šis el. pašto adresas jau užprenumeruotas naujienlaiškį.'
+      });
+    }
+    
+    // Add new subscriber
+    data.subscribers.push(email);
+    
+    // Save updated list
+    if (saveSubscribers(data)) {
+      console.log(`New newsletter subscriber: ${email}`);
+      return res.jsonp({
+        success: true,
+        message: 'Ačiū už prenumeratą! Naujienlaiškis bus siunčiamas adresu: ' + email
+      });
+    } else {
+      return res.status(500).jsonp({
+        success: false,
+        error: 'Klaida išsaugant prenumeratą. Bandykite vėliau.'
+      });
+    }
+  } catch (error) {
+    console.error('Error in newsletter subscription:', error);
+    return res.status(500).jsonp({
+      success: false,
+      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+    });
+  }
+});
+
+// Endpoint to unsubscribe from newsletter
+server.get('/api/newsletter/unsubscribe', (req, res) => {
+  try {
+    const { email } = req.query;
+    
+    if (!email) {
+      return res.status(400).jsonp({
+        success: false,
+        error: 'El. pašto adresas nenurodytas.'
+      });
+    }
+    
+    // Get current subscribers
+    const data = getSubscribers();
+    
+    // Check if email exists in the list
+    if (!data.subscribers.includes(email)) {
+      return res.jsonp({
+        success: false,
+        message: 'Šis el. pašto adresas nėra prenumeruojamas naujienlaiškį.'
+      });
+    }
+    
+    // Remove the email from subscribers
+    data.subscribers = data.subscribers.filter(e => e !== email);
+    
+    // Save updated list
+    if (saveSubscribers(data)) {
+      console.log(`Unsubscribed: ${email}`);
+      return res.jsonp({
+        success: true,
+        message: 'Sėkmingai atsisakėte naujienlaiškio prenumeratos.'
+      });
+    } else {
+      return res.status(500).jsonp({
+        success: false,
+        error: 'Klaida atsisakant naujienlaiškio prenumeratos. Bandykite vėliau.'
+      });
+    }
+  } catch (error) {
+    console.error('Error in newsletter unsubscription:', error);
+    return res.status(500).jsonp({
+      success: false,
+      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+    });
+  }
+});
+
+// Admin endpoint to view newsletter subscribers
+server.get('/admin/newsletter/subscribers', (req, res) => {
+  try {
+    const data = getSubscribers();
+    res.jsonp({
+      success: true,
+      data: data.subscribers
+    });
+  } catch (error) {
+    console.error('Error getting subscribers:', error);
+    res.status(500).jsonp({
+      success: false,
+      error: 'Klaida gaunant prenumeratorių sąrašą.'
+    });
+  }
+});
+
+// Delete a subscriber from admin panel
+server.delete('/admin/newsletter/subscribers/:email', (req, res) => {
+  try {
+    const email = decodeURIComponent(req.params.email);
+    
+    // Get current subscribers
+    const data = getSubscribers();
+    
+    // Check if email exists
+    if (!data.subscribers.includes(email)) {
+      return res.status(404).jsonp({
+        success: false,
+        error: 'Prenumeratorius nerastas.'
+      });
+    }
+    
+    // Remove the email
+    data.subscribers = data.subscribers.filter(e => e !== email);
+    
+    // Save updated list
+    if (saveSubscribers(data)) {
+      return res.jsonp({
+        success: true,
+        message: 'Prenumeratorius sėkmingai pašalintas.'
+      });
+    } else {
+      return res.status(500).jsonp({
+        success: false,
+        error: 'Klaida šalinant prenumeratorių. Bandykite vėliau.'
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting subscriber:', error);
+    return res.status(500).jsonp({
+      success: false,
+      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+    });
+  }
+});
+
+// Send manual newsletter
+server.post('/admin/newsletter/send', (req, res) => {
+  try {
+    const { subject, content } = req.body;
+    
+    if (!subject || !content) {
+      return res.status(400).jsonp({
+        success: false,
+        error: 'Prašome nurodyti temą ir turinį.'
+      });
+    }
+    
+    // Get subscribers
+    const subscribersData = getSubscribers();
+    
+    if (subscribersData.subscribers.length === 0) {
+      return res.status(400).jsonp({
+        success: false,
+        error: 'Nėra prenumeratorių, kuriems būtų galima išsiųsti naujienlaiškį.'
+      });
+    }
+    
+    // Prepare recipients with personalized content
+    const recipients = subscribersData.subscribers.map(email => ({
+      email,
+      htmlContent: getManualNewsletterTemplate(subject, content, email)
+    }));
+    
+    // Send the newsletter
+    sendNewsletterEmail(subject, recipients)
+      .then(success => {
+        if (success) {
+          console.log(`Manual newsletter sent to ${subscribersData.subscribers.length} subscribers`);
+          return res.jsonp({
+            success: true,
+            message: `Naujienlaiškis sėkmingai išsiųstas ${subscribersData.subscribers.length} prenumeratoriams.`
+          });
+        } else {
+          return res.status(500).jsonp({
+            success: false,
+            error: 'Klaida siunčiant naujienlaiškį. Bandykite vėliau.'
+          });
+        }
+      })
+      .catch(error => {
+        console.error('Error sending manual newsletter:', error);
+        return res.status(500).jsonp({
+          success: false,
+          error: 'Klaida siunčiant naujienlaiškį. Bandykite vėliau.'
+        });
+      });
+  } catch (error) {
+    console.error('Error in sending manual newsletter:', error);
+    return res.status(500).jsonp({
+      success: false,
+      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+    });
+  }
 });
 
 // Endpoint to get about page data
@@ -789,6 +1265,33 @@ server.post('/admin/recipes', upload.single('image'), (req, res) => {
     const allRecipes = router.db.get('recipes').value();
     console.log(`Database now has ${allRecipes.length} recipes`);
     
+    // Send newsletter if the recipe is published
+    if (newRecipe.status === 'published') {
+      // Get subscribers
+      const subscribersData = getSubscribers();
+      
+      if (subscribersData.subscribers.length > 0) {
+        // Create email content and prepare recipients
+        const emailSubject = `Naujas receptas: ${newRecipe.title}`;
+        
+        // Prepare recipients with personalized content
+        const recipients = subscribersData.subscribers.map(email => ({
+          email,
+          htmlContent: getNewsletterTemplate(newRecipe, email)
+        }));
+        
+        // Send newsletter
+        sendNewsletterEmail(emailSubject, recipients)
+          .then(success => {
+            if (success) {
+              console.log(`Newsletter sent to ${subscribersData.subscribers.length} subscribers for recipe: ${newRecipe.title}`);
+            } else {
+              console.error(`Failed to send newsletter for recipe: ${newRecipe.title}`);
+            }
+          });
+      }
+    }
+    
     res.jsonp({
       success: true,
       data: newRecipe
@@ -867,12 +1370,43 @@ server.put('/admin/recipes/:id', upload.single('image'), (req, res) => {
   }
   
   try {
+    // Check if the recipe status changed from draft to published
+    const wasPublished = existingRecipe.status !== 'published' && updatedRecipe.status === 'published';
+    
+    // Update the recipe in the database
     router.db.get('recipes').find({ id }).assign(updatedRecipe).write();
     
     // Update categories list after updating a recipe
     updateCategoriesList();
     
     console.log("Recipe updated successfully");
+    
+    // Send newsletter if the recipe is newly published
+    if (wasPublished) {
+      // Get subscribers
+      const subscribersData = getSubscribers();
+      
+      if (subscribersData.subscribers.length > 0) {
+        // Create email subject
+        const emailSubject = `Naujas receptas: ${updatedRecipe.title}`;
+        
+        // Prepare recipients with personalized content
+        const recipients = subscribersData.subscribers.map(email => ({
+          email,
+          htmlContent: getNewsletterTemplate(updatedRecipe, email)
+        }));
+        
+        // Send newsletter
+        sendNewsletterEmail(emailSubject, recipients)
+          .then(success => {
+            if (success) {
+              console.log(`Newsletter sent to ${subscribersData.subscribers.length} subscribers for recipe: ${updatedRecipe.title}`);
+            } else {
+              console.error(`Failed to send newsletter for recipe: ${updatedRecipe.title}`);
+            }
+          });
+      }
+    }
     
     res.jsonp({
       success: true,
@@ -947,6 +1481,10 @@ server.listen(port, () => {
   console.log(`http://localhost:${port}/api/recipes`);
   console.log(`http://localhost:${port}/api/categories`);
   console.log(`http://localhost:${port}/api/about`);
+  console.log(`http://localhost:${port}/api/newsletter/subscribe`);
+  console.log(`http://localhost:${port}/api/newsletter/unsubscribe`);
+  console.log(`http://localhost:${port}/admin/newsletter/subscribers`);
+  console.log(`http://localhost:${port}/admin/newsletter/send`);
   console.log(`http://localhost:${port}/api/auth/login`);
   console.log(`http://localhost:${port}/auth/login`);
   console.log(`http://localhost:${port}/admin/dashboard/stats`);

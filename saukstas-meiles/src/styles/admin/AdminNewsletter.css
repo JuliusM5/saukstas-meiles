@@ -1,0 +1,45 @@
+/* src/styles/admin/AdminNewsletter.css */
+
+.subscribers-count {
+  margin-bottom: 20px;
+  font-size: 1.1rem;
+  color: #7a7a7a;
+}
+
+.no-subscribers {
+  padding: 30px;
+  text-align: center;
+  font-style: italic;
+  color: #7a7a7a;
+  background-color: #f9f6f1;
+  border-radius: 5px;
+}
+
+.newsletter-form {
+  background-color: #f9f6f1;
+  padding: 20px;
+  border-radius: 5px;
+  margin-top: 20px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.form-text {
+  display: block;
+  margin-top: 5px;
+  color: #7a7a7a;
+  font-style: italic;
+}
+
+.newsletter-warning {
+  margin-top: 15px;
+  padding: 10px 15px;
+  background-color: #fff3cd;
+  color: #856404;
+  border-radius: 4px;
+  border: 1px solid #ffeeba;
+}
