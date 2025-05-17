@@ -1,8 +1,13 @@
 [build]
   command = "npm run build"
-  publish = "."
+  publish = "build"
 
 [dev]
-  command = "npm start"  # or whatever command starts your dev server
+  command = "npm start"
   port = 8888
-  targetPort = 3000  # the port your app runs on locally
+  targetPort = 3000
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
