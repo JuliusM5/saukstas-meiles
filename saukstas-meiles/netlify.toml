@@ -1,0 +1,9 @@
+[build]
+  # Adjust these settings based on your project type
+  command = "npm run build"  # or your build command
+  publish = "build"  # or your output directory (dist, public, etc.)
+
+[dev]
+  command = "npm start"  # or whatever command starts your dev server
+  port = 8888
+  targetPort = 3000  # the port your app runs on locally
