@@ -10,14 +10,13 @@ const HomePage = () => {
   const [latestRecipes, setLatestRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    // Fetch recipes on initial load - limit to 6 for homepage
-    fetchRecipes(6);
+    // Fetch exactly 9 recipes for the homepage (3x3 grid)
+    fetchRecipes(9);
   }, []);
 
-  const fetchRecipes = async (limit = 6) => {
+  const fetchRecipes = async (limit = 9) => {
     try {
       setLoading(true);
       setError(null);
@@ -30,7 +29,7 @@ const HomePage = () => {
         setRecipes(response.data.data);
         
         // Set latest recipes on first load
-        if (page === 1) {
+        if (limit === 9) {
           setLatestRecipes(response.data.data.slice(0, 3));
         }
       } else {
