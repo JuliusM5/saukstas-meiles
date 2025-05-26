@@ -160,7 +160,7 @@ class FirebaseAPI {
       const commentsRef = collection(db, 'recipes', recipeId, 'comments');
       const newComment = {
         ...commentData,
-        created_at: serverTimestamp(),
+        created_at: new Date().toISOString(), // Use ISO string instead of serverTimestamp for immediate use
         status: 'pending' // Comments need approval
       };
       
@@ -170,8 +170,7 @@ class FirebaseAPI {
         success: true,
         data: {
           id: docRef.id,
-          ...newComment,
-          created_at: new Date().toISOString()
+          ...newComment
         }
       };
     } catch (error) {
@@ -456,7 +455,82 @@ class FirebaseAPI {
     }
   }
   
-  // Get dashboard stats
+  // Get all comments (admin)
+  async getAllComments(status = null) {
+    try {
+      const recipesSnapshot = await getDocs(collection(db, 'recipes'));
+      const allComments = [];
+      
+      for (const recipeDoc of recipesSnapshot.docs) {
+        const recipeData = recipeDoc.data();
+        const commentsRef = collection(db, 'recipes', recipeDoc.id, 'comments');
+        let q = commentsRef;
+        
+        // Filter by status if provided
+        if (status && status !== 'all') {
+          q = query(commentsRef, where('status', '==', status));
+        }
+        
+        const commentsSnapshot = await getDocs(q);
+        
+        commentsSnapshot.docs.forEach(commentDoc => {
+          allComments.push({
+            id: commentDoc.id,
+            recipeId: recipeDoc.id,
+            recipeTitle: recipeData.title,
+            ...commentDoc.data()
+          });
+        });
+      }
+      
+      // Sort by date (newest first)
+      allComments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      
+      return {
+        success: true,
+        data: allComments
+      };
+    } catch (error) {
+      console.error('Error fetching all comments:', error);
+      return {
+        success: true,
+        data: []
+      };
+    }
+  }
+  
+  // Update comment status
+  async updateCommentStatus(recipeId, commentId, status) {
+    try {
+      const commentRef = doc(db, 'recipes', recipeId, 'comments', commentId);
+      await updateDoc(commentRef, { 
+        status,
+        updated_at: new Date().toISOString()
+      });
+      
+      return {
+        success: true
+      };
+    } catch (error) {
+      console.error('Error updating comment status:', error);
+      throw error;
+    }
+  }
+  
+  // Delete comment
+  async deleteComment(recipeId, commentId) {
+    try {
+      const commentRef = doc(db, 'recipes', recipeId, 'comments', commentId);
+      await deleteDoc(commentRef);
+      
+      return {
+        success: true
+      };
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      throw error;
+    }
+  }
   async getDashboardStats() {
     try {
       const recipesSnapshot = await getDocs(collection(db, 'recipes'));
@@ -548,6 +622,9 @@ export const api = {
       return { data: await firebaseAPI.getNewsletterSubscribers() };
     } else if (endpoint.includes('/admin/recipes')) {
       return { data: await firebaseAPI.getRecipes({ ...config.params, isAdmin: true }) };
+    } else if (endpoint.includes('/admin/comments')) {
+      const status = config.params?.status || null;
+      return { data: await firebaseAPI.getAllComments(status) };
     } else if (endpoint.includes('/admin/about')) {
       return { data: await firebaseAPI.getAboutData() };
     }
@@ -560,6 +637,11 @@ export const api = {
       return { data: await firebaseAPI.subscribeToNewsletter(data.email) };
     } else if (endpoint.includes('/admin/recipes')) {
       return { data: await firebaseAPI.createRecipe(data.recipeData, data.imageFile) };
+    } else if (endpoint.match(/\/recipes\/[\w-]+\/comments$/)) {
+      // Extract recipe ID from endpoint
+      const parts = endpoint.split('/');
+      const recipeId = parts[parts.length - 2];
+      return { data: await firebaseAPI.addRecipeComment(recipeId, data) };
     }
     
     throw new Error(`Endpoint not implemented: ${endpoint}`);
@@ -571,6 +653,12 @@ export const api = {
       return { data: await firebaseAPI.updateRecipe(id, data.recipeData, data.imageFile) };
     } else if (endpoint.includes('/admin/about')) {
       return { data: await firebaseAPI.updateAboutData(data.aboutData, data.mainImageFile, data.sidebarImageFile) };
+    } else if (endpoint.match(/\/admin\/recipes\/[\w-]+\/comments\/[\w-]+$/)) {
+      // Update comment status
+      const parts = endpoint.split('/');
+      const commentId = parts.pop();
+      const recipeId = parts[parts.length - 2];
+      return { data: await firebaseAPI.updateCommentStatus(recipeId, commentId, data.status) };
     }
     
     throw new Error(`Endpoint not implemented: ${endpoint}`);
@@ -583,6 +671,12 @@ export const api = {
     } else if (endpoint.includes('/admin/newsletter/subscribers/')) {
       const email = decodeURIComponent(endpoint.split('/').pop());
       return { data: await firebaseAPI.deleteNewsletterSubscriber(email) };
+    } else if (endpoint.match(/\/admin\/recipes\/[\w-]+\/comments\/[\w-]+$/)) {
+      // Delete comment
+      const parts = endpoint.split('/');
+      const commentId = parts.pop();
+      const recipeId = parts[parts.length - 2];
+      return { data: await firebaseAPI.deleteComment(recipeId, commentId) };
     }
     
     throw new Error(`Endpoint not implemented: ${endpoint}`);
