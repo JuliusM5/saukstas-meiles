@@ -2,7 +2,7 @@
   "name": "saukstas-meiles",
   "version": "0.1.0",
   "private": true,
-  "homepage": "",
+  "homepage": "https://saukstasmeiles.web.app",
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.4.0",
     "@sendgrid/mail": "^8.1.5",

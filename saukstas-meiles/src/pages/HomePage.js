@@ -1,4 +1,4 @@
-import FirebaseTest from '../components/FirebaseTest';
+// src/pages/HomePage.js
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
@@ -47,7 +47,6 @@ const HomePage = () => {
 
   return (
     <>
-     <FirebaseTest />
       <div className="content-main">
         <RecipeList
           recipes={recipes}
@@ -73,12 +72,11 @@ const HomePage = () => {
               <div className="latest-post-image">
                 {recipe.image ? (
                   <img 
-                    src={`/img/recipes/${recipe.image}`} 
+                    src={recipe.image} 
                     alt={recipe.title} 
                     loading="lazy"
                     onError={(e) => {
                       e.target.onerror = null;
-                      // Simple data URI for the placeholder
                       e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect fill='%23f8f5f1' width='60' height='60'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='12' text-anchor='middle' x='30' y='30'%3EReceptas%3C/text%3E%3C/svg%3E`;
                     }}
                   />
@@ -91,7 +89,7 @@ const HomePage = () => {
                   <Link to={`/recipe/${recipe.id}`}>{recipe.title}</Link>
                 </h3>
                 <div className="latest-post-date">
-                  {new Date(recipe.created_at).toLocaleDateString('lt-LT')}
+                  {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString('lt-LT') : ''}
                 </div>
               </div>
             </div>

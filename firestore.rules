@@ -2,6 +2,40 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Allow read access to recipes for everyone
+    match /recipes/{recipeId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == 'admin';
+    }
+    
+    // Allow read access to settings (including about page)
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == 'admin';
+    }
+    
+    // Newsletter subscribers - write only for subscriptions, admin can read
+    match /newsletter_subscribers/{subscriberId} {
+      allow create: if true;
+      allow read: if request.auth != null && request.auth.uid == 'admin';
+      allow update: if request.auth != null && request.auth.uid == 'admin' 
+                    || resource.data.email == request.resource.data.email;
+      allow delete: if request.auth != null && request.auth.uid == 'admin';
+    }
+    
+    // Comments on recipes
+    match /recipes/{recipeId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if request.auth != null && request.auth.uid == 'admin';
+    }
+    
+    // Admin users
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Default deny all
     match /{document=**} {
       allow read, write: if false;
     }

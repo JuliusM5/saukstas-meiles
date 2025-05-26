@@ -1,7 +1,5 @@
+// src/pages/admin/AdminAddRecipe.js
 import React, { useState, useEffect } from 'react';
-import { db, storage } from '../../firebase';
-import { collection, addDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -19,89 +17,99 @@ const AdminAddRecipe = () => {
   const isEditing = !!id;
 
   useEffect(() => {
-    // If editing an existing recipe, fetch its data
     if (isEditing) {
       fetchRecipe();
     }
   }, [id]);
 
   const fetchRecipe = async () => {
-  try {
-    setLoading(true);
-    const recipeDoc = await getDoc(doc(db, 'recipes', id));
-    
-    if (recipeDoc.exists()) {
-      setRecipe({ id: recipeDoc.id, ...recipeDoc.data() });
-    } else {
-      setError('Recipe not found');
+    try {
+      setLoading(true);
+      const response = await api.get(`/admin/recipes/${id}`);
+      
+      if (response.data.success) {
+        setRecipe(response.data.data);
+      } else {
+        setError('Receptas nerastas');
+      }
+    } catch (error) {
+      console.error('Error fetching recipe:', error);
+      setError('Klaida įkeliant receptą');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching recipe:', error);
-    setError('Error loading recipe');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-    const handleSubmit = async (formData) => {
-  try {
-    setLoading(true);
-    
-    let imageUrl = recipe?.image || '';
-    
-    // Upload image to Firebase Storage if new image
-    if (formData.image instanceof File) {
-      const imageRef = ref(storage, `recipes/${Date.now()}-${formData.image.name}`);
-      const snapshot = await uploadBytes(imageRef, formData.image);
-      imageUrl = await getDownloadURL(snapshot.ref);
+  const handleSubmit = async (formData) => {
+    try {
+      setLoading(true);
+      
+      // Prepare recipe data
+      const recipeData = {
+        title: formData.title,
+        intro: formData.intro,
+        categories: formData.categories || [],
+        ingredients: formData.ingredients?.filter(ing => ing.trim()) || [],
+        steps: formData.steps?.filter(step => step.trim()) || [],
+        tags: formData.tags || [],
+        prep_time: formData.prep_time,
+        cook_time: formData.cook_time,
+        servings: formData.servings,
+        notes: formData.notes,
+        status: formData.status
+      };
+      
+      // Keep existing image if no new image is uploaded
+      if (isEditing && !formData.image && recipe?.image) {
+        recipeData.image = recipe.image;
+        recipeData.imagePath = recipe.imagePath;
+      }
+      
+      let response;
+      
+      if (isEditing) {
+        // Update existing recipe
+        response = await api.put(`/admin/recipes/${id}`, {
+          recipeData,
+          imageFile: formData.image
+        });
+      } else {
+        // Create new recipe
+        response = await api.post('/admin/recipes', {
+          recipeData,
+          imageFile: formData.image
+        });
+      }
+      
+      if (response.data.success) {
+        setNotification({
+          title: 'Sėkmė',
+          message: isEditing ? 'Receptas atnaujintas!' : 'Receptas sukurtas!',
+          type: 'success'
+        });
+        
+        setTimeout(() => {
+          navigate('/admin/recipes');
+        }, 1500);
+      } else {
+        setNotification({
+          title: 'Klaida',
+          message: response.data.error || 'Klaida išsaugant receptą',
+          type: 'error'
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error saving recipe:', error);
+      setNotification({
+        title: 'Klaida',
+        message: 'Klaida išsaugant receptą. Bandykite vėliau.',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
     }
-    
-    const recipeData = {
-      title: formData.title,
-      intro: formData.intro,
-      image: imageUrl,
-      categories: formData.categories || [],
-      ingredients: formData.ingredients || [],
-      steps: formData.steps || [],
-      tags: formData.tags || [],
-      prep_time: formData.prep_time,
-      cook_time: formData.cook_time,
-      servings: formData.servings,
-      notes: formData.notes,
-      status: formData.status,
-      created_at: recipe?.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    if (isEditing) {
-      // Update existing recipe
-      await updateDoc(doc(db, 'recipes', id), recipeData);
-    } else {
-      // Create new recipe
-      await addDoc(collection(db, 'recipes'), recipeData);
-    }
-    
-    setNotification({
-      title: 'Sėkmė',
-      message: isEditing ? 'Receptas atnaujintas!' : 'Receptas sukurtas!',
-      type: 'success'
-    });
-    
-    setTimeout(() => {
-      navigate('/admin/recipes');
-    }, 1500);
-    
-  } catch (error) {
-    console.error('Error saving recipe:', error);
-    setNotification({
-      title: 'Klaida',
-      message: 'Klaida išsaugant receptą',
-      type: 'error'
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div id="admin-add-recipe">

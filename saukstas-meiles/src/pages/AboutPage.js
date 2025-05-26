@@ -1,3 +1,4 @@
+// src/pages/AboutPage.js
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
 import Sidebar from '../components/layout/Sidebar';
@@ -32,21 +33,7 @@ const AboutPage = () => {
   const fetchAboutData = async () => {
     try {
       setLoading(true);
-      // Try to get data from /api/about first, then fallback to /about
-      try {
-        const response = await api.get('/api/about');
-        
-        if (response.data.success) {
-          setAboutData(response.data.data);
-          setLoading(false);
-          return;
-        }
-      } catch (firstError) {
-        console.log('First attempt failed, trying alternate endpoint');
-      }
-      
-      // If first attempt fails, try the alternate endpoint
-      const response = await api.get('/about');
+      const response = await api.get('/api/about');
       
       if (response.data.success) {
         setAboutData(response.data.data);
@@ -65,7 +52,6 @@ const AboutPage = () => {
   };
 
   const getDefaultAboutData = () => {
-    // Default data to use if API fails
     return {
       title: 'Apie Mane',
       subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
@@ -118,9 +104,6 @@ const AboutPage = () => {
     }
     
     try {
-      // In a real app, we would send this to the API
-      // const response = await api.post('/contact', contactForm);
-      
       // For now, just simulate a successful API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -157,7 +140,7 @@ const AboutPage = () => {
     );
   }
 
-  // Use default data or API data
+  // Use API data or default data
   const data = aboutData || getDefaultAboutData();
 
   return (
@@ -172,10 +155,9 @@ const AboutPage = () => {
           <div className="about-image">
             {data.image ? (
               <img 
-                src={`/img/about/${data.image}`} 
+                src={data.image} 
                 alt="Autorė" 
                 onError={(e) => {
-                  // If image fails to load, use a data URI placeholder
                   e.target.onerror = null;
                   e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='300' viewBox='0 0 500 300'%3E%3Crect fill='%23f8f5f1' width='500' height='300'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='30' text-anchor='middle' x='250' y='150'%3ELidija - Šaukštas Meilės autorė%3C/text%3E%3C/svg%3E";
                 }}

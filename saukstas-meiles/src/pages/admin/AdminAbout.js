@@ -1,3 +1,4 @@
+// src/pages/admin/AdminAbout.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
@@ -59,16 +60,15 @@ const AdminAbout = () => {
           }
         });
         
-        // Set current image if exists
+        // Set current images if exist
         if (data.image) {
           setCurrentImage(data.image);
-          setPreviewImage(`/img/about/${data.image}`);
+          setPreviewImage(data.image);
         }
         
-        // Set current sidebar image if exists
         if (data.sidebar_image) {
           setCurrentSidebarImage(data.sidebar_image);
-          setPreviewSidebarImage(`/img/about/${data.sidebar_image}`);
+          setPreviewSidebarImage(data.sidebar_image);
         }
       } else {
         setNotification({
@@ -201,41 +201,29 @@ const AdminAbout = () => {
     try {
       setSubmitting(true);
       
-      // Create FormData for the request
-      const data = new FormData();
+      // Prepare about data
+      const aboutData = {
+        title: formData.title,
+        subtitle: formData.subtitle,
+        intro: formData.intro,
+        sections: formData.sections.filter(section => section.title && section.content),
+        social: formData.social
+      };
       
-      // Add basic fields
-      data.append('title', formData.title);
-      data.append('subtitle', formData.subtitle);
-      data.append('intro', formData.intro);
-      
-      // Add social fields
-      data.append('email', formData.social.email);
-      data.append('instagram', formData.social.instagram);
-      data.append('facebook', formData.social.facebook);
-      data.append('pinterest', formData.social.pinterest);
-      
-      // Add sections
-      formData.sections.forEach((section, index) => {
-        data.append('section_titles', section.title);
-        data.append('section_contents', section.content);
-      });
-      
-      // Add image if selected
-      if (formData.image instanceof File) {
-        data.append('image', formData.image);
+      // Keep existing images if no new ones are uploaded
+      if (currentImage && !formData.image) {
+        aboutData.image = currentImage;
       }
       
-      // Add sidebar image if selected
-      if (formData.sidebar_image instanceof File) {
-        data.append('sidebar_image', formData.sidebar_image);
+      if (currentSidebarImage && !formData.sidebar_image) {
+        aboutData.sidebar_image = currentSidebarImage;
       }
       
-      // Send the request
-      const response = await api.put('/admin/about', data, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      // Update about data
+      const response = await api.put('/admin/about', {
+        aboutData,
+        mainImageFile: formData.image,
+        sidebarImageFile: formData.sidebar_image
       });
       
       if (response.data.success) {

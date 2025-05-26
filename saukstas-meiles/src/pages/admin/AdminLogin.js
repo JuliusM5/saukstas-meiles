@@ -1,3 +1,4 @@
+// src/pages/admin/AdminLogin.js
 import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -5,7 +6,7 @@ import '../../styles/admin/AdminLogin.css';
 
 const AdminLogin = () => {
   const { login, isAuthenticated } = useAuth();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,8 +20,8 @@ const AdminLogin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!username || !password) {
-      setError('Prašome įvesti vartotojo vardą ir slaptažodį.');
+    if (!email || !password) {
+      setError('Prašome įvesti el. paštą ir slaptažodį.');
       return;
     }
     
@@ -28,7 +29,7 @@ const AdminLogin = () => {
     setLoading(true);
     
     try {
-      const result = await login(username, password);
+      const result = await login(email, password);
       
       if (result.success) {
         navigate('/admin');
@@ -59,17 +60,17 @@ const AdminLogin = () => {
         
         <form id="login-form" className="login-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Vartotojo vardas</label>
+            <label htmlFor="email">El. paštas</label>
             <input 
-              type="text" 
-              id="username" 
-              name="username" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email" 
+              id="email" 
+              name="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="form-control" 
               required 
               disabled={loading}
-              autoComplete="username"
+              autoComplete="email"
             />
           </div>
           <div className="form-group">

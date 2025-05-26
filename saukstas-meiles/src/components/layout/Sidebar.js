@@ -1,3 +1,4 @@
+// src/components/layout/Sidebar.js
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
@@ -55,23 +56,20 @@ const Sidebar = () => {
       <div className="sidebar-section">
         <h3 className="sidebar-title">Apie mane</h3>
         <div className="about-me-img">
-            <img 
-                src={aboutData && aboutData.sidebar_image 
-                  ? `/img/about/${aboutData.sidebar_image}` 
-                  : (aboutData && aboutData.image 
-                    ? `/img/about/${aboutData.image}` 
-                    : `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`)} 
-                alt="Šaukštas Meilės autorė"  
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`;
-                }}
-            />
+          <img 
+            src={aboutData?.sidebar_image || aboutData?.image || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`} 
+            alt="Šaukštas Meilės autorė"  
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`;
+            }}
+          />
         </div>
         <div className="about-me-text">
           <p>{aboutData ? aboutData.intro.substring(0, 150) + '...' : 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais...'}</p>
         </div>
         <div className="social-links">
+          <a href={`mailto:${aboutData?.social?.email || 'info@saukstas-meiles.lt'}`} className="social-link"><i className="fa fa-envelope"></i></a>
           <a href={aboutData?.social?.instagram || "#"} className="social-link" target="_blank" rel="noopener noreferrer"><i className="fa fa-instagram"></i></a>
           <a href={aboutData?.social?.facebook || "#"} className="social-link" target="_blank" rel="noopener noreferrer"><i className="fa fa-facebook"></i></a>
           <a href={aboutData?.social?.pinterest || "#"} className="social-link" target="_blank" rel="noopener noreferrer"><i className="fa fa-pinterest"></i></a>
@@ -85,24 +83,23 @@ const Sidebar = () => {
             popularRecipes.map(recipe => (
               <li key={recipe.id} className="popular-post-item">
                 <Link to={`/recipe/${recipe.id}`}>
-                    <div className="popular-post-img">
-                        {recipe.image ? (
-                            <img 
-                            src={`/img/recipes/${recipe.image}`} 
-                            alt={recipe.title} 
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                // Simple data URI for the placeholder
-                                e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect fill='%23f8f5f1' width='60' height='60'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='12' text-anchor='middle' x='30' y='30'%3EReceptas%3C/text%3E%3C/svg%3E`;
-                            }}
-                            />
-                        ) : (
-                            <div className="placeholder-image"></div>
-                        )}
-                    </div>
+                  <div className="popular-post-img">
+                    {recipe.image ? (
+                      <img 
+                        src={recipe.image} 
+                        alt={recipe.title} 
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect fill='%23f8f5f1' width='60' height='60'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='12' text-anchor='middle' x='30' y='30'%3EReceptas%3C/text%3E%3C/svg%3E`;
+                        }}
+                      />
+                    ) : (
+                      <div className="placeholder-image"></div>
+                    )}
+                  </div>
                   <div className="popular-post-content">
                     <div className="popular-post-title">{recipe.title}</div>
-                    <div className="popular-post-date">{new Date(recipe.created_at).toLocaleDateString('lt-LT')}</div>
+                    <div className="popular-post-date">{recipe.created_at ? new Date(recipe.created_at).toLocaleDateString('lt-LT') : ''}</div>
                   </div>
                 </Link>
               </li>
