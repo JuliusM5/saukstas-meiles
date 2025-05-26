@@ -31,11 +31,17 @@ const CommentForm = ({ recipeId, onCommentAdded }) => {
     }
     
     try {
-      const response = await api.post(`/recipes/${recipeId}/comments`, {
+      console.log('Submitting comment for recipe:', recipeId);
+      const endpoint = `/recipes/${recipeId}/comments`;
+      console.log('Comment endpoint:', endpoint);
+      
+      const response = await api.post(endpoint, {
         author: name,
-        email,
+        email: email,
         content: comment
       });
+      
+      console.log('Comment response:', response);
       
       if (response.data.success) {
         setSuccess(true);

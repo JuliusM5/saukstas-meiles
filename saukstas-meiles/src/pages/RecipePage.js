@@ -26,21 +26,30 @@ const RecipePage = () => {
     fetchRecipe();
   }, [id]);
 
-  const fetchRecipe = async () => {
+   const fetchRecipe = async () => {
     try {
+      console.log('Fetching recipe with ID:', id);
       const recipeResponse = await api.get(`/recipes/${id}`);
+      console.log('Recipe response:', recipeResponse);
       
       if (recipeResponse.data.success) {
         setRecipe(recipeResponse.data.data);
         
         // Fetch comments for this recipe
-        const commentsResponse = await api.get(`/recipes/${id}/comments`);
-        
-        if (commentsResponse.data.success) {
-          setComments(commentsResponse.data.data);
+        try {
+          const commentsResponse = await api.get(`/recipes/${id}/comments`);
+          console.log('Comments response:', commentsResponse);
+          
+          if (commentsResponse.data.success) {
+            setComments(commentsResponse.data.data);
+          }
+        } catch (commentError) {
+          console.error('Error fetching comments:', commentError);
+          // Don't fail the whole page if comments fail to load
+          setComments([]);
         }
       } else {
-        setError('Receptas nerastas.');
+        setError(recipeResponse.data.error || 'Receptas nerastas.');
       }
     } catch (error) {
       console.error('Error fetching recipe:', error);

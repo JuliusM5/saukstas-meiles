@@ -531,6 +531,10 @@ export const api = {
   get: async (endpoint, config = {}) => {
     if (endpoint.includes('/recipes') && endpoint.split('/').length === 2) {
       return { data: await firebaseAPI.getRecipes(config.params || {}) };
+    } else if (endpoint.match(/\/recipes\/[\w-]+\/comments$/)) {
+      const parts = endpoint.split('/');
+      const recipeId = parts[parts.length - 2];
+      return { data: await firebaseAPI.getRecipeComments(recipeId) };
     } else if (endpoint.match(/\/recipes\/[\w-]+$/)) {
       const id = endpoint.split('/').pop();
       return { data: await firebaseAPI.getRecipe(id) };
