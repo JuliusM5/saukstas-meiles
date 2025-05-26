@@ -1,23 +1,9 @@
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'http://localhost:3001',
-});
-
-// Add auth header interceptor
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  
-  // Important: Remove content-type for FormData (let browser set it with boundary)
-  if (config.data instanceof FormData) {
-    delete config.headers['Content-Type'];
-  }
-  
-  return config;
-});
+// Fake API for now - we'll use Firebase directly in components
+const api = {
+  get: () => Promise.reject(new Error('Use Firebase directly')),
+  post: () => Promise.reject(new Error('Use Firebase directly')),
+  put: () => Promise.reject(new Error('Use Firebase directly')),
+  delete: () => Promise.reject(new Error('Use Firebase directly'))
+};
 
 export { api };

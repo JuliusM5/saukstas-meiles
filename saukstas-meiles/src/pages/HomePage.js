@@ -1,3 +1,4 @@
+import FirebaseTest from '../components/FirebaseTest';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
@@ -46,6 +47,7 @@ const HomePage = () => {
 
   return (
     <>
+     <FirebaseTest />
       <div className="content-main">
         <RecipeList
           recipes={recipes}

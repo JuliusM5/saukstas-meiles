@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { db, storage } from '../../firebase';
+import { collection, addDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -23,135 +26,82 @@ const AdminAddRecipe = () => {
   }, [id]);
 
   const fetchRecipe = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await api.get(`/admin/recipes/${id}`);
-      
-      if (response.data.success) {
-        setRecipe(response.data.data);
-      } else {
-        setError('Nepavyko įkelti recepto.');
-        // Show notification
-        setNotification({
-          title: 'Klaida',
-          message: 'Nepavyko įkelti recepto.',
-          type: 'error'
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching recipe:', error);
-      setError('Klaida įkeliant receptą. Bandykite vėliau.');
-      
-      // Show notification
-      setNotification({
-        title: 'Klaida',
-        message: 'Klaida įkeliant receptą. Bandykite vėliau.',
-        type: 'error'
-      });
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    const recipeDoc = await getDoc(doc(db, 'recipes', id));
+    
+    if (recipeDoc.exists()) {
+      setRecipe({ id: recipeDoc.id, ...recipeDoc.data() });
+    } else {
+      setError('Recipe not found');
     }
-  };
+  } catch (error) {
+    console.error('Error fetching recipe:', error);
+    setError('Error loading recipe');
+  } finally {
+    setLoading(false);
+  }
+};
 
     const handleSubmit = async (formData) => {
-    try {
-        setLoading(true);
-        
-        console.log("Processing form data:", formData);
-        
-        // Create FormData for file upload
-        const data = new FormData();
-        
-        // Add all form fields
-        Object.keys(formData).forEach(key => {
-        if (key === 'categories') {
-            // Handle categories array
-            if (Array.isArray(formData[key])) {
-            formData[key].forEach(value => {
-                data.append('categories[]', value);
-            });
-            }
-        } else if (key === 'ingredients') {
-            // Handle ingredients array
-            if (Array.isArray(formData[key])) {
-            formData[key].forEach(value => {
-                if (value) data.append('ingredients[]', value);
-            });
-            }
-        } else if (key === 'steps') {
-            // Handle steps array
-            if (Array.isArray(formData[key])) {
-            formData[key].forEach(value => {
-                if (value) data.append('steps[]', value);
-            });
-            }
-        } else if (key === 'tags') {
-            // Handle tags array
-            if (Array.isArray(formData[key])) {
-            formData[key].forEach(value => {
-                if (value) data.append('tags[]', value);
-            });
-            }
-        } else if (key === 'image' && formData[key] instanceof File) {
-            // Handle image file
-            console.log("Adding image file:", formData[key].name);
-            data.append('image', formData[key]);
-        } else {
-            // Handle regular fields
-            data.append(key, formData[key]);
-        }
-        });
-        
-        console.log("FormData prepared, sending to server...");
-        
-        let response;
-        
-        if (isEditing) {
-        // Update existing recipe
-        response = await api.put(`/admin/recipes/${id}`, data);
-        } else {
-        // Create new recipe
-        response = await api.post('/admin/recipes', data);
-        }
-        
-        console.log("Server response:", response);
-        
-        if (response.data.success) {
-        // Show success notification
-        setNotification({
-            title: 'Sėkmė',
-            message: isEditing ? 'Receptas sėkmingai atnaujintas.' : 'Receptas sėkmingai sukurtas.',
-            type: 'success'
-        });
-        
-        // Redirect to recipes list after a short delay
-        setTimeout(() => {
-            navigate('/admin/recipes');
-        }, 1500);
-        } else {
-        // Show error notification
-        setNotification({
-            title: 'Klaida',
-            message: response.data.error || 'Klaida išsaugant receptą.',
-            type: 'error'
-        });
-        }
-    } catch (error) {
-        console.error('Error saving recipe:', error);
-        console.log("Error details:", error.response || error.message);
-        
-        // Show error notification
-        setNotification({
-        title: 'Klaida',
-        message: 'Klaida išsaugant receptą. Bandykite vėliau.',
-        type: 'error'
-        });
-    } finally {
-        setLoading(false);
+  try {
+    setLoading(true);
+    
+    let imageUrl = recipe?.image || '';
+    
+    // Upload image to Firebase Storage if new image
+    if (formData.image instanceof File) {
+      const imageRef = ref(storage, `recipes/${Date.now()}-${formData.image.name}`);
+      const snapshot = await uploadBytes(imageRef, formData.image);
+      imageUrl = await getDownloadURL(snapshot.ref);
     }
+    
+    const recipeData = {
+      title: formData.title,
+      intro: formData.intro,
+      image: imageUrl,
+      categories: formData.categories || [],
+      ingredients: formData.ingredients || [],
+      steps: formData.steps || [],
+      tags: formData.tags || [],
+      prep_time: formData.prep_time,
+      cook_time: formData.cook_time,
+      servings: formData.servings,
+      notes: formData.notes,
+      status: formData.status,
+      created_at: recipe?.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
+    
+    if (isEditing) {
+      // Update existing recipe
+      await updateDoc(doc(db, 'recipes', id), recipeData);
+    } else {
+      // Create new recipe
+      await addDoc(collection(db, 'recipes'), recipeData);
+    }
+    
+    setNotification({
+      title: 'Sėkmė',
+      message: isEditing ? 'Receptas atnaujintas!' : 'Receptas sukurtas!',
+      type: 'success'
+    });
+    
+    setTimeout(() => {
+      navigate('/admin/recipes');
+    }, 1500);
+    
+  } catch (error) {
+    console.error('Error saving recipe:', error);
+    setNotification({
+      title: 'Klaida',
+      message: 'Klaida išsaugant receptą',
+      type: 'error'
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div id="admin-add-recipe">
