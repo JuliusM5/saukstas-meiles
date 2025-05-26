@@ -129,6 +129,57 @@ class FirebaseAPI {
     }
   }
   
+  // Get comments for a recipe
+  async getRecipeComments(recipeId) {
+    try {
+      const commentsRef = collection(db, 'recipes', recipeId, 'comments');
+      const q = query(commentsRef, orderBy('created_at', 'desc'));
+      const snapshot = await getDocs(q);
+      
+      const comments = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return {
+        success: true,
+        data: comments
+      };
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      return {
+        success: true,
+        data: [] // Return empty array on error
+      };
+    }
+  }
+  
+  // Add comment to recipe
+  async addRecipeComment(recipeId, commentData) {
+    try {
+      const commentsRef = collection(db, 'recipes', recipeId, 'comments');
+      const newComment = {
+        ...commentData,
+        created_at: serverTimestamp(),
+        status: 'pending' // Comments need approval
+      };
+      
+      const docRef = await addDoc(commentsRef, newComment);
+      
+      return {
+        success: true,
+        data: {
+          id: docRef.id,
+          ...newComment,
+          created_at: new Date().toISOString()
+        }
+      };
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      throw error;
+    }
+  }
+  
   // Create recipe
   async createRecipe(recipeData, imageFile = null) {
     try {
