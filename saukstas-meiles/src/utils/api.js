@@ -622,6 +622,8 @@ export const api = {
       return { data: await firebaseAPI.getNewsletterSubscribers() };
     } else if (endpoint.includes('/admin/recipes')) {
       return { data: await firebaseAPI.getRecipes({ ...config.params, isAdmin: true }) };
+    } else if (endpoint.includes('/admin/media')) {
+      return { data: await firebaseAPI.getAllMedia() };
     } else if (endpoint.includes('/admin/comments')) {
       const status = config.params?.status || null;
       return { data: await firebaseAPI.getAllComments(status) };
@@ -642,6 +644,8 @@ export const api = {
       const parts = endpoint.split('/');
       const recipeId = parts[parts.length - 2];
       return { data: await firebaseAPI.addRecipeComment(recipeId, data) };
+    } else if (endpoint.includes('/admin/media/upload')) {
+      return { data: await firebaseAPI.uploadMedia(data.get('image')) };
     }
     
     throw new Error(`Endpoint not implemented: ${endpoint}`);
@@ -677,6 +681,9 @@ export const api = {
       const commentId = parts.pop();
       const recipeId = parts[parts.length - 2];
       return { data: await firebaseAPI.deleteComment(recipeId, commentId) };
+    } else if (endpoint.includes('/admin/media/')) {
+      const id = endpoint.split('/').pop();
+      return { data: await firebaseAPI.deleteMedia(id) };
     }
     
     throw new Error(`Endpoint not implemented: ${endpoint}`);

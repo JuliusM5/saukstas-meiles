@@ -16,6 +16,8 @@ import AdminRecipes from './pages/admin/AdminRecipes';
 import AdminAddRecipe from './pages/admin/AdminAddRecipe';
 import AdminAbout from './pages/admin/AdminAbout';
 import AdminNewsletter from './pages/admin/AdminNewsletter';
+import AdminComments from './pages/admin/AdminComments';
+import AdminMedia from './pages/admin/AdminMedia';
 import UnsubscribePage from './pages/UnsubscribePage';
 import NotFound from './pages/NotFound';
 import PrivateRoute from './components/auth/PrivateRoute';
