@@ -59,12 +59,6 @@ const AdminAddRecipe = () => {
         status: formData.status
       };
       
-      // Keep existing image if no new image is uploaded
-      if (isEditing && !formData.image && recipe?.image) {
-        recipeData.image = recipe.image;
-        recipeData.imagePath = recipe.imagePath;
-      }
-      
       let response;
       
       if (isEditing) {

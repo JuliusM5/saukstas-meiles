@@ -53,14 +53,6 @@ const AdminHeader = ({ activePage }) => {
                 Komentarai
               </Link>
             </li>
-            <li>
-              <Link 
-                to="/admin/media" 
-                className={activePage === 'media' ? 'active' : ''}
-              >
-                Nuotraukos
-              </Link>
-            </li>
               <li>
                 <Link 
                   to="/admin/newsletter" 

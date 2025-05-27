@@ -219,7 +219,7 @@ const AdminAbout = () => {
         aboutData.sidebar_image = currentSidebarImage;
       }
       
-      // Update about data
+      // Update about data using Firebase API
       const response = await api.put('/admin/about', {
         aboutData,
         mainImageFile: formData.image,

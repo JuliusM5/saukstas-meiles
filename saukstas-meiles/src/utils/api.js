@@ -160,8 +160,8 @@ class FirebaseAPI {
       const commentsRef = collection(db, 'recipes', recipeId, 'comments');
       const newComment = {
         ...commentData,
-        created_at: new Date().toISOString(), // Use ISO string instead of serverTimestamp for immediate use
-        status: 'pending' // Comments need approval
+        created_at: new Date().toISOString(),
+        status: 'approved' // Auto-approve all comments
       };
       
       const docRef = await addDoc(commentsRef, newComment);
@@ -291,7 +291,85 @@ class FirebaseAPI {
       throw error;
     }
   }
-  
+  async getDashboardStats() {
+    try {
+      const recipesSnapshot = await getDocs(collection(db, 'recipes'));
+      const recipes = recipesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Get comments count
+      let totalComments = 0;
+      let pendingComments = 0;
+      let approvedComments = 0;
+      const allComments = [];
+      
+      // Fetch comments from each recipe
+      for (const recipeDoc of recipesSnapshot.docs) {
+        const recipeData = recipeDoc.data();
+        const commentsRef = collection(db, 'recipes', recipeDoc.id, 'comments');
+        try {
+          const commentsSnapshot = await getDocs(commentsRef);
+          
+          commentsSnapshot.docs.forEach(commentDoc => {
+            const comment = commentDoc.data();
+            totalComments++;
+            
+            if (comment.status === 'approved') {
+              approvedComments++;
+            } else if (!comment.status || comment.status === 'pending') {
+              pendingComments++;
+            }
+            
+            // Add to all comments for recent display
+            allComments.push({
+              id: commentDoc.id,
+              author: comment.author || 'Anonimas',
+              content: comment.content || '',
+              recipe_title: recipeData.title || 'Nežinomas receptas',
+              created_at: comment.created_at || new Date().toISOString()
+            });
+          });
+        } catch (error) {
+          console.warn(`Error fetching comments for recipe ${recipeDoc.id}:`, error);
+        }
+      }
+      
+      // Sort comments by date and get recent ones
+      allComments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const recentComments = allComments.slice(0, 2);
+      
+      const stats = {
+        recipes: {
+          total: recipes.length,
+          published: recipes.filter(r => r.status === 'published').length,
+          draft: recipes.filter(r => r.status === 'draft' || !r.status).length
+        },
+        comments: {
+          total: totalComments,
+          pending: pendingComments,
+          approved: approvedComments
+        },
+        media: {
+          total: recipes.filter(r => r.image).length
+        },
+        recent_recipes: recipes.slice(0, 3),
+        recent_comments: recentComments
+      };
+      
+      return {
+        success: true,
+        data: stats
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
   // Get categories
   async getCategories() {
     try {
@@ -456,7 +534,7 @@ class FirebaseAPI {
   }
   
   // Get all comments (admin)
-  async getAllComments(status = null) {
+   async getAllComments(status = null) {
     try {
       const recipesSnapshot = await getDocs(collection(db, 'recipes'));
       const allComments = [];
@@ -464,27 +542,44 @@ class FirebaseAPI {
       for (const recipeDoc of recipesSnapshot.docs) {
         const recipeData = recipeDoc.data();
         const commentsRef = collection(db, 'recipes', recipeDoc.id, 'comments');
-        let q = commentsRef;
         
-        // Filter by status if provided
+        // Build query based on status
+        let commentsQuery;
         if (status && status !== 'all') {
-          q = query(commentsRef, where('status', '==', status));
+          commentsQuery = query(commentsRef, where('status', '==', status), orderBy('created_at', 'desc'));
+        } else {
+          commentsQuery = query(commentsRef, orderBy('created_at', 'desc'));
         }
         
-        const commentsSnapshot = await getDocs(q);
-        
-        commentsSnapshot.docs.forEach(commentDoc => {
-          allComments.push({
-            id: commentDoc.id,
-            recipeId: recipeDoc.id,
-            recipeTitle: recipeData.title,
-            ...commentDoc.data()
+        try {
+          const commentsSnapshot = await getDocs(commentsQuery);
+          
+          commentsSnapshot.docs.forEach(commentDoc => {
+            const commentData = commentDoc.data();
+            allComments.push({
+              id: commentDoc.id,
+              recipeId: recipeDoc.id,
+              recipeTitle: recipeData.title || 'Nežinomas receptas',
+              author: commentData.author || 'Anonimas',
+              email: commentData.email || '',
+              content: commentData.content || '',
+              status: commentData.status || 'pending',
+              created_at: commentData.created_at || new Date().toISOString(),
+              ...commentData
+            });
           });
-        });
+        } catch (queryError) {
+          console.warn(`Error fetching comments for recipe ${recipeDoc.id}:`, queryError);
+          // Continue with next recipe if this one fails
+        }
       }
       
       // Sort by date (newest first)
-      allComments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      allComments.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return dateB - dateA;
+      });
       
       return {
         success: true,
@@ -520,7 +615,26 @@ class FirebaseAPI {
   // Delete comment
   async deleteComment(recipeId, commentId) {
     try {
+      // Check if recipeId is valid
+      if (!recipeId || recipeId === 'undefined') {
+        console.error('Invalid recipeId:', recipeId);
+        return {
+          success: false,
+          error: 'Invalid recipe ID'
+        };
+      }
+      
       const commentRef = doc(db, 'recipes', recipeId, 'comments', commentId);
+      
+      // Check if comment exists before deleting
+      const commentDoc = await getDoc(commentRef);
+      if (!commentDoc.exists()) {
+        return {
+          success: false,
+          error: 'Comment not found'
+        };
+      }
+      
       await deleteDoc(commentRef);
       
       return {
@@ -528,42 +642,10 @@ class FirebaseAPI {
       };
     } catch (error) {
       console.error('Error deleting comment:', error);
-      throw error;
-    }
-  }
-  async getDashboardStats() {
-    try {
-      const recipesSnapshot = await getDocs(collection(db, 'recipes'));
-      const recipes = recipesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      const stats = {
-        recipes: {
-          total: recipes.length,
-          published: recipes.filter(r => r.status === 'published').length,
-          draft: recipes.filter(r => r.status === 'draft' || !r.status).length
-        },
-        comments: {
-          total: 0,
-          pending: 0,
-          approved: 0
-        },
-        media: {
-          total: recipes.filter(r => r.image).length
-        },
-        recent_recipes: recipes.slice(0, 3),
-        recent_comments: []
-      };
-      
       return {
-        success: true,
-        data: stats
+        success: false,
+        error: error.message
       };
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-      throw error;
     }
   }
   

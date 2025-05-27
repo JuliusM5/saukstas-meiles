@@ -17,7 +17,6 @@ import AdminAddRecipe from './pages/admin/AdminAddRecipe';
 import AdminAbout from './pages/admin/AdminAbout';
 import AdminNewsletter from './pages/admin/AdminNewsletter';
 import AdminComments from './pages/admin/AdminComments';
-import AdminMedia from './pages/admin/AdminMedia';
 import UnsubscribePage from './pages/UnsubscribePage';
 import NotFound from './pages/NotFound';
 import PrivateRoute from './components/auth/PrivateRoute';
@@ -44,6 +43,7 @@ function App() {
           <Route path="/admin/recipes/edit/:id" element={<PrivateRoute><AdminAddRecipe /></PrivateRoute>} />
           <Route path="/admin/about" element={<PrivateRoute><AdminAbout /></PrivateRoute>} />
           <Route path="/admin/newsletter" element={<PrivateRoute><AdminNewsletter /></PrivateRoute>} />
+          <Route path="/admin/comments" element={<PrivateRoute><AdminComments /></PrivateRoute>} />
           
           {/* Not found route */}
           <Route path="*" element={<PageWrapper><NotFound /></PageWrapper>} />

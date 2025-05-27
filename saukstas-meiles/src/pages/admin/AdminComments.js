@@ -37,36 +37,6 @@ const AdminComments = () => {
     }
   };
 
-  const handleApprove = async (recipeId, commentId) => {
-    try {
-      const response = await api.put(`/admin/recipes/${recipeId}/comments/${commentId}`, {
-        status: 'approved'
-      });
-      
-      if (response.data.success) {
-        setNotification({
-          title: 'Sėkmė',
-          message: 'Komentaras patvirtintas.',
-          type: 'success'
-        });
-        fetchComments();
-      } else {
-        setNotification({
-          title: 'Klaida',
-          message: response.data.error || 'Klaida tvirtinant komentarą.',
-          type: 'error'
-        });
-      }
-    } catch (error) {
-      console.error('Error approving comment:', error);
-      setNotification({
-        title: 'Klaida',
-        message: 'Klaida tvirtinant komentarą. Bandykite vėliau.',
-        type: 'error'
-      });
-    }
-  };
-
   const handleDelete = async (recipeId, commentId) => {
     if (!window.confirm('Ar tikrai norite ištrinti šį komentarą?')) {
       return;
@@ -130,19 +100,7 @@ const AdminComments = () => {
             className={`tab ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => setActiveTab('all')}
           >
-            Visi
-          </div>
-          <div 
-            className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pending')}
-          >
-            Laukiantys patvirtinimo
-          </div>
-          <div 
-            className={`tab ${activeTab === 'approved' ? 'active' : ''}`}
-            onClick={() => setActiveTab('approved')}
-          >
-            Patvirtinti
+            Visi komentarai
           </div>
         </div>
         
@@ -175,26 +133,13 @@ const AdminComments = () => {
                 </div>
                 
                 <div className="comment-admin-footer">
-                  <div className={`comment-status ${comment.status}`}>
-                    {comment.status === 'pending' ? 'Laukia patvirtinimo' : 'Patvirtintas'}
-                  </div>
-                  
                   <div className="comment-admin-actions">
-                    {comment.status === 'pending' && (
-                      <button 
-                        className="action-btn approve-btn"
-                        onClick={() => handleApprove(comment.recipeId, comment.id)}
-                        title="Patvirtinti"
-                      >
-                        <i className="fas fa-check"></i>
-                      </button>
-                    )}
                     <button 
                       className="action-btn delete-btn"
                       onClick={() => handleDelete(comment.recipeId, comment.id)}
                       title="Ištrinti"
                     >
-                      <i className="fas fa-trash"></i>
+                      <i className="fas fa-trash"></i> Ištrinti
                     </button>
                   </div>
                 </div>
