@@ -88,6 +88,7 @@
 
 .comment-content {
   line-height: 1.8;
+  margin-left: 70px; /* Align with avatar */
 }
 
 .comment-content p {
@@ -95,37 +96,6 @@
 }
 
 .comment-content p:last-child {
-  margin-bottom: 0;
-}
-
-.comment-reply-link {
-  font-size: 0.9rem;
-  color: #7f4937;
-  display: inline-block;
-  margin-top: 15px;
-  transition: all 0.2s;
-  border-bottom: 1px dotted transparent;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.comment-reply-link:hover {
-  border-bottom: 1px dotted #7f4937;
-}
-
-.comment-replies {
-  margin-top: 20px;
-  padding-left: 40px;
-  border-left: 2px solid #f2ebe2;
-}
-
-.comment-reply {
-  margin-bottom: 20px;
-}
-
-.comment-reply:last-child {
   margin-bottom: 0;
 }
 
@@ -198,30 +168,6 @@ textarea.form-control {
   cursor: not-allowed;
 }
 
-.cancel-button {
-  background-color: #e6ddd6;
-  color: #3d3d3d;
-  border: none;
-  padding: 12px 25px;
-  border-radius: 4px;
-  font-family: 'Source Sans Pro', sans-serif;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  margin-left: 10px;
-  display: inline-block;
-  text-decoration: none;
-}
-
-.cancel-button:hover {
-  background-color: #d6cdc6;
-}
-
-.form-buttons {
-  display: flex;
-  gap: 10px;
-}
-
 .form-success,
 .form-error,
 .comment-success,
@@ -245,24 +191,16 @@ textarea.form-control {
   border: 1px solid #f5c6cb;
 }
 
-/* Reply form */
-.reply-form {
-  margin-top: 20px;
-  margin-left: 40px;
-  padding: 20px;
-  background-color: #f9f6f1;
-  border-radius: 5px;
-  border: 1px solid #e6ddd6;
-}
-
-.reply-form h4 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-family: 'Playfair Display', serif;
-  color: #7f4937;
-  font-size: 1.1rem;
-}
-
-.reply-form .form-group {
-  margin-bottom: 15px;
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .comment-content {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .comment-avatar {
+    width: 45px;
+    height: 45px;
+    font-size: 20px;
+  }
 }

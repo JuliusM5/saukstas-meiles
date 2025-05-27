@@ -4,7 +4,6 @@ import '../../styles/Comments.css';
 
 const CommentForm = ({ recipeId, onCommentAdded }) => {
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -15,17 +14,9 @@ const CommentForm = ({ recipeId, onCommentAdded }) => {
     setSubmitting(true);
     setError('');
     
-    // Validate form
-    if (!name || !email || !comment) {
-      setError('Prašome užpildyti visus būtinus laukus.');
-      setSubmitting(false);
-      return;
-    }
-    
-    // Validate email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('Prašome įvesti teisingą el. pašto adresą.');
+    // Validate form - only name and comment are required
+    if (!name || !comment) {
+      setError('Prašome įvesti vardą ir komentarą.');
       setSubmitting(false);
       return;
     }
@@ -37,7 +28,7 @@ const CommentForm = ({ recipeId, onCommentAdded }) => {
       
       const response = await api.post(endpoint, {
         author: name,
-        email: email,
+        email: '', // Always send empty string for email
         content: comment
       });
       
@@ -46,7 +37,6 @@ const CommentForm = ({ recipeId, onCommentAdded }) => {
       if (response.data.success) {
         setSuccess(true);
         setName('');
-        setEmail('');
         setComment('');
         
         // Notify parent component
@@ -75,7 +65,7 @@ const CommentForm = ({ recipeId, onCommentAdded }) => {
       
       {success && (
         <div className="comment-success">
-          Ačiū už komentarą! Jis bus paskelbtas po peržiūros.
+          Ačiū už komentarą!
         </div>
       )}
       
@@ -94,19 +84,6 @@ const CommentForm = ({ recipeId, onCommentAdded }) => {
             name="name" 
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="form-control" 
-            required 
-            disabled={submitting}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="email">El. paštas (nebus skelbiamas)</label>
-          <input 
-            type="email" 
-            id="email" 
-            name="email" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             className="form-control" 
             required 
             disabled={submitting}

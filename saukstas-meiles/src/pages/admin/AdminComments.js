@@ -38,6 +38,18 @@ const AdminComments = () => {
   };
 
   const handleDelete = async (recipeId, commentId) => {
+    console.log('Attempting to delete comment:', { recipeId, commentId });
+    
+    // Validate recipeId
+    if (!recipeId || recipeId === 'undefined' || recipeId === 'null') {
+      setNotification({
+        title: 'Klaida',
+        message: 'Nerastas recepto ID. Bandykite perkrauti puslapį.',
+        type: 'error'
+      });
+      return;
+    }
+    
     if (!window.confirm('Ar tikrai norite ištrinti šį komentarą?')) {
       return;
     }
@@ -119,13 +131,20 @@ const AdminComments = () => {
                 <div className="comment-admin-header">
                   <div className="comment-admin-author">
                     <strong>{comment.author}</strong> 
-                    <span className="comment-admin-email">({comment.email})</span>
+                    {comment.email && (
+                      <span className="comment-admin-email">({comment.email})</span>
+                    )}
                   </div>
                   <div className="comment-admin-date">{formatDate(comment.created_at)}</div>
                 </div>
                 
                 <div className="comment-admin-recipe">
                   Receptas: <strong>{comment.recipeTitle || 'Nežinomas'}</strong>
+                  {!comment.recipeId && (
+                    <span style={{ color: '#cf5151', marginLeft: '10px' }}>
+                      (Recepto ID nerastas)
+                    </span>
+                  )}
                 </div>
                 
                 <div className="comment-admin-content">
@@ -138,6 +157,7 @@ const AdminComments = () => {
                       className="action-btn delete-btn"
                       onClick={() => handleDelete(comment.recipeId, comment.id)}
                       title="Ištrinti"
+                      disabled={!comment.recipeId}
                     >
                       <i className="fas fa-trash"></i> Ištrinti
                     </button>

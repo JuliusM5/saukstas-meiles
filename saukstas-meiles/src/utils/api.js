@@ -558,14 +558,15 @@ class FirebaseAPI {
             const commentData = commentDoc.data();
             allComments.push({
               id: commentDoc.id,
-              recipeId: recipeDoc.id,
+              recipeId: recipeDoc.id, // This is crucial for delete functionality
               recipeTitle: recipeData.title || 'Nežinomas receptas',
               author: commentData.author || 'Anonimas',
               email: commentData.email || '',
               content: commentData.content || '',
               status: commentData.status || 'pending',
               created_at: commentData.created_at || new Date().toISOString(),
-              ...commentData
+              ...commentData,
+              recipeId: recipeDoc.id // Ensure recipeId is always present
             });
           });
         } catch (queryError) {

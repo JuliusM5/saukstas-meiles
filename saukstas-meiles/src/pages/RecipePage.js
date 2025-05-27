@@ -26,7 +26,7 @@ const RecipePage = () => {
     fetchRecipe();
   }, [id]);
 
-   const fetchRecipe = async () => {
+  const fetchRecipe = async () => {
     try {
       console.log('Fetching recipe with ID:', id);
       const recipeResponse = await api.get(`/recipes/${id}`);
@@ -60,18 +60,8 @@ const RecipePage = () => {
   };
 
   const handleCommentAdded = (newComment) => {
-    // In a real app, we might refresh the comments after a successful comment
-    // For now, we'll just append a notification that the comment will be available after review
-    setComments(prev => [
-      {
-        id: 'temp-' + Date.now(),
-        author: newComment.author,
-        content: 'Jūsų komentaras bus rodomas po administratoriaus peržiūros.',
-        created_at: new Date().toISOString(),
-        status: 'pending'
-      },
-      ...prev
-    ]);
+    // Simply refresh the comments list to show the new comment
+    fetchRecipe();
   };
 
   if (loading) {
