@@ -55,7 +55,7 @@ const AdminComments = () => {
     }
     
     try {
-      const response = await api.delete(`/admin/recipes/${recipeId}/comments/${commentId}`);
+      const response = await api.delete(`/recipes/${recipeId}/comments/${commentId}`);
       
       if (response.data.success) {
         setNotification({

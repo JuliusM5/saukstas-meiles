@@ -752,18 +752,19 @@ export const api = {
   },
   
   delete: async (endpoint) => {
-    if (endpoint.includes('/admin/recipes/')) {
+    if (endpoint.match(/\/recipes\/[\w-]+\/comments\/[\w-]+$/)) {
+      // Delete comment - this should be checked first to avoid conflicts
+      const parts = endpoint.split('/');
+      const commentId = parts.pop();
+      const recipeId = parts[parts.length - 2];
+      console.log('API Delete - recipeId:', recipeId, 'commentId:', commentId);
+      return { data: await firebaseAPI.deleteComment(recipeId, commentId) };
+    } else if (endpoint.includes('/admin/recipes/')) {
       const id = endpoint.split('/').pop();
       return { data: await firebaseAPI.deleteRecipe(id) };
     } else if (endpoint.includes('/admin/newsletter/subscribers/')) {
       const email = decodeURIComponent(endpoint.split('/').pop());
       return { data: await firebaseAPI.deleteNewsletterSubscriber(email) };
-    } else if (endpoint.match(/\/admin\/recipes\/[\w-]+\/comments\/[\w-]+$/)) {
-      // Delete comment
-      const parts = endpoint.split('/');
-      const commentId = parts.pop();
-      const recipeId = parts[parts.length - 2];
-      return { data: await firebaseAPI.deleteComment(recipeId, commentId) };
     } else if (endpoint.includes('/admin/media/')) {
       const id = endpoint.split('/').pop();
       return { data: await firebaseAPI.deleteMedia(id) };
