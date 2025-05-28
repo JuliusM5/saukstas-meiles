@@ -1,3 +1,4 @@
+// Updated Sidebar component with flexible About section
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
@@ -99,6 +100,11 @@ const Sidebar = () => {
     return `/img/about/${image}`;
   };
 
+  // Get display text for about section - always show full text
+  const getAboutText = () => {
+    return aboutData?.intro || 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais...';
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-section">
@@ -114,7 +120,7 @@ const Sidebar = () => {
           />
         </div>
         <div className="about-me-text">
-          <p>{aboutData ? aboutData.intro.substring(0, 150) + '...' : 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais...'}</p>
+          <p>{getAboutText()}</p>
         </div>
         <div className="social-links">
           <a href={`mailto:${aboutData?.social?.email || 'info@saukstas-meiles.lt'}`} className="social-link"><i className="fa fa-envelope"></i></a>
