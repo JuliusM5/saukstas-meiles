@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar.js
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
@@ -51,13 +50,62 @@ const Sidebar = () => {
     fetchAboutData();
   }, []);
 
+  // Format date function
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    
+    try {
+      let date;
+      if (dateString.seconds) {
+        // Firebase Timestamp object
+        date = new Date(dateString.seconds * 1000);
+      } else if (typeof dateString === 'string') {
+        date = new Date(dateString);
+      } else {
+        return '';
+      }
+      
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
+      return date.toLocaleDateString('lt-LT');
+    } catch (error) {
+      return '';
+    }
+  };
+
+  // Format title
+  const formatTitle = (title) => {
+    if (!title) return '';
+    return title.charAt(0).toUpperCase() + title.slice(1).toLowerCase();
+  };
+
+  // Get image URL
+  const getImageUrl = (image) => {
+    if (!image) return null;
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+      return image;
+    }
+    return `/img/recipes/${image}`;
+  };
+
+  // Get about image URL
+  const getAboutImageUrl = (image) => {
+    if (!image) return null;
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+      return image;
+    }
+    return `/img/about/${image}`;
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-section">
         <h3 className="sidebar-title">Apie mane</h3>
         <div className="about-me-img">
           <img 
-            src={aboutData?.sidebar_image || aboutData?.image || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`} 
+            src={aboutData?.sidebar_image ? getAboutImageUrl(aboutData.sidebar_image) : (aboutData?.image ? getAboutImageUrl(aboutData.image) : `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='60' fill='%23f8f5f1'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='20' text-anchor='middle' x='60' y='65'%3EL%3C/text%3E%3C/svg%3E`)} 
             alt="Šaukštas Meilės autorė"  
             onError={(e) => {
               e.target.onerror = null;
@@ -86,20 +134,21 @@ const Sidebar = () => {
                   <div className="popular-post-img">
                     {recipe.image ? (
                       <img 
-                        src={recipe.image} 
+                        src={getImageUrl(recipe.image)} 
                         alt={recipe.title} 
                         onError={(e) => {
                           e.target.onerror = null;
-                          e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect fill='%23f8f5f1' width='60' height='60'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='12' text-anchor='middle' x='30' y='30'%3EReceptas%3C/text%3E%3C/svg%3E`;
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = `<div class="placeholder-image-small">${formatTitle(recipe.title)}</div>`;
                         }}
                       />
                     ) : (
-                      <div className="placeholder-image"></div>
+                      <div className="placeholder-image-small">{formatTitle(recipe.title)}</div>
                     )}
                   </div>
                   <div className="popular-post-content">
-                    <div className="popular-post-title">{recipe.title}</div>
-                    <div className="popular-post-date">{recipe.created_at ? new Date(recipe.created_at).toLocaleDateString('lt-LT') : ''}</div>
+                    <div className="popular-post-title">{formatTitle(recipe.title)}</div>
+                    <div className="popular-post-date">{formatDate(recipe.created_at)}</div>
                   </div>
                 </Link>
               </li>

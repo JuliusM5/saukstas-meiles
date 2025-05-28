@@ -29,11 +29,15 @@ const RecipePage = () => {
   const fetchRecipe = async () => {
     try {
       console.log('Fetching recipe with ID:', id);
+      
+      // Fetch recipe data
       const recipeResponse = await api.get(`/recipes/${id}`);
       console.log('Recipe response:', recipeResponse);
       
       if (recipeResponse.data.success) {
-        setRecipe(recipeResponse.data.data);
+        const recipeData = recipeResponse.data.data;
+        console.log('Recipe data:', recipeData);
+        setRecipe(recipeData);
         
         // Fetch comments for this recipe
         try {
@@ -41,7 +45,7 @@ const RecipePage = () => {
           console.log('Comments response:', commentsResponse);
           
           if (commentsResponse.data.success) {
-            setComments(commentsResponse.data.data);
+            setComments(commentsResponse.data.data || []);
           }
         } catch (commentError) {
           console.error('Error fetching comments:', commentError);

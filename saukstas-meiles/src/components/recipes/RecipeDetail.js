@@ -1,4 +1,3 @@
-// src/components/recipes/RecipeDetail.js
 import React from 'react';
 import { Link } from 'react-router-dom';
 import '../../styles/RecipeDetail.css';
@@ -13,12 +12,28 @@ const RecipeDetail = ({ recipe }) => {
     );
   }
 
-  // Format date
+  // Format date safely
   const formatDate = (dateString) => {
     if (!dateString) return '';
     
     try {
-      const date = new Date(dateString);
+      // Handle Firebase Timestamp
+      let date;
+      if (dateString.seconds) {
+        // Firebase Timestamp object
+        date = new Date(dateString.seconds * 1000);
+      } else if (typeof dateString === 'string') {
+        // Regular date string
+        date = new Date(dateString);
+      } else {
+        return '';
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
       return date.toLocaleDateString('lt-LT', {
         year: 'numeric',
         month: 'long',
@@ -30,10 +45,29 @@ const RecipeDetail = ({ recipe }) => {
     }
   };
 
+  // Get image URL
+  const getImageUrl = (image) => {
+    if (!image) return null;
+    
+    // If it's already a full URL (from Firebase Storage), use it directly
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+      return image;
+    }
+    
+    // Otherwise, assume it's a local image
+    return `/img/recipes/${image}`;
+  };
+
+  // Format title
+  const formatTitle = (title) => {
+    if (!title) return '';
+    return title.charAt(0).toUpperCase() + title.slice(1).toLowerCase();
+  };
+
   return (
     <div className="recipe-main">
       <div className="recipe-header">
-        <h1 className="recipe-title">{recipe.title}</h1>
+        <h1 className="recipe-title">{formatTitle(recipe.title)}</h1>
         
         <div className="recipe-meta">
           {recipe.categories && recipe.categories.length > 0 && (
@@ -49,28 +83,30 @@ const RecipeDetail = ({ recipe }) => {
             </div>
           )}
           
-          <div className="recipe-date">{formatDate(recipe.created_at)}</div>
+          {formatDate(recipe.created_at) && (
+            <div className="recipe-date">{formatDate(recipe.created_at)}</div>
+          )}
         </div>
       </div>
       
       <div className="recipe-content">
-        <div className="recipe-image">
-          {recipe.image ? (
+        {recipe.image && (
+          <div className="recipe-image">
             <img 
-              src={recipe.image} 
+              src={getImageUrl(recipe.image)} 
               alt={recipe.title}
               onError={(e) => {
                 e.target.onerror = null;
-                e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='300' viewBox='0 0 500 300'%3E%3Crect fill='%23f8f5f1' width='500' height='300'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='30' text-anchor='middle' x='250' y='150'%3E${recipe.title}%3C/text%3E%3C/svg%3E`;
+                e.target.style.display = 'none';
+                e.target.parentElement.innerHTML = `
+                  <div class="placeholder-image">
+                    <span>Nuotrauka nepasiekiama</span>
+                  </div>
+                `;
               }}
             />
-          ) : (
-            <div className="placeholder-image">
-              <span>Nuotrauka nepateikta</span>
-              <span>{recipe.title}</span>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
         
         {recipe.intro && (
           <div className="recipe-intro">{recipe.intro}</div>
@@ -91,31 +127,27 @@ const RecipeDetail = ({ recipe }) => {
           </div>
         </div>
         
-        <div className="recipe-ingredients">
-          <h3>Ingredientai</h3>
-          <ul>
-            {recipe.ingredients && recipe.ingredients.length > 0 ? (
-              recipe.ingredients.map((ingredient, index) => (
+        {recipe.ingredients && recipe.ingredients.length > 0 && (
+          <div className="recipe-ingredients">
+            <h3>Ingredientai</h3>
+            <ul>
+              {recipe.ingredients.filter(ing => ing && ing.trim()).map((ingredient, index) => (
                 <li key={index}>{ingredient}</li>
-              ))
-            ) : (
-              <li>Nėra pateiktų ingredientų</li>
-            )}
-          </ul>
-        </div>
+              ))}
+            </ul>
+          </div>
+        )}
         
-        <div className="recipe-steps">
-          <h3>Gaminimo eiga</h3>
-          <ol>
-            {recipe.steps && recipe.steps.length > 0 ? (
-              recipe.steps.map((step, index) => (
+        {recipe.steps && recipe.steps.length > 0 && (
+          <div className="recipe-steps">
+            <h3>Gaminimo eiga</h3>
+            <ol>
+              {recipe.steps.filter(step => step && step.trim()).map((step, index) => (
                 <li key={index}>{step}</li>
-              ))
-            ) : (
-              <li>Nėra pateiktų gaminimo žingsnių</li>
-            )}
-          </ol>
-        </div>
+              ))}
+            </ol>
+          </div>
+        )}
         
         {recipe.notes && (
           <div className="recipe-notes">

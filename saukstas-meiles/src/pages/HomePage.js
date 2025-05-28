@@ -1,4 +1,3 @@
-// src/pages/HomePage.js
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../utils/api';
@@ -45,6 +44,46 @@ const HomePage = () => {
     }
   };
 
+  // Format date function
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    
+    try {
+      let date;
+      if (dateString.seconds) {
+        // Firebase Timestamp object
+        date = new Date(dateString.seconds * 1000);
+      } else if (typeof dateString === 'string') {
+        date = new Date(dateString);
+      } else {
+        return '';
+      }
+      
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
+      return date.toLocaleDateString('lt-LT');
+    } catch (error) {
+      return '';
+    }
+  };
+
+  // Format title
+  const formatTitle = (title) => {
+    if (!title) return '';
+    return title.charAt(0).toUpperCase() + title.slice(1).toLowerCase();
+  };
+
+  // Get image URL
+  const getImageUrl = (image) => {
+    if (!image) return null;
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+      return image;
+    }
+    return `/img/recipes/${image}`;
+  };
+
   return (
     <>
       <div className="content-main">
@@ -72,24 +111,25 @@ const HomePage = () => {
               <div className="latest-post-image">
                 {recipe.image ? (
                   <img 
-                    src={recipe.image} 
+                    src={getImageUrl(recipe.image)} 
                     alt={recipe.title} 
                     loading="lazy"
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect fill='%23f8f5f1' width='60' height='60'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='12' text-anchor='middle' x='30' y='30'%3EReceptas%3C/text%3E%3C/svg%3E`;
+                      e.target.style.display = 'none';
+                      e.target.parentElement.innerHTML = `<div class="placeholder-image-small">${formatTitle(recipe.title)}</div>`;
                     }}
                   />
                 ) : (
-                  <div className="placeholder-image"></div>
+                  <div className="placeholder-image-small">{formatTitle(recipe.title)}</div>
                 )}
               </div>
               <div className="latest-post-content">
                 <h3 className="latest-post-title">
-                  <Link to={`/recipe/${recipe.id}`}>{recipe.title}</Link>
+                  <Link to={`/recipe/${recipe.id}`}>{formatTitle(recipe.title)}</Link>
                 </h3>
                 <div className="latest-post-date">
-                  {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString('lt-LT') : ''}
+                  {formatDate(recipe.created_at)}
                 </div>
               </div>
             </div>
