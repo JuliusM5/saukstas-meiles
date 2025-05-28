@@ -1,6 +1,11 @@
-// src/firebase.js - Enhanced with security checks
 import { initializeApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  connectFirestoreEmulator,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getAnalytics } from 'firebase/analytics';
@@ -36,7 +41,14 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Initialize Firestore with new cache settings
+export const db = initializeFirestore(app, {
+  cache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
 export const storage = getStorage(app);
 
 // Initialize Analytics only in production
@@ -51,14 +63,5 @@ if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_EMULATOR
   connectStorageEmulator(storage, 'localhost', 9199);
   console.log('Connected to Firebase emulators');
 }
-
-// Enable offline persistence for Firestore
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-  } else if (err.code === 'unimplemented') {
-    console.warn('The current browser does not support offline persistence.');
-  }
-});
 
 export default app;
