@@ -1,4 +1,4 @@
-// src/utils/api.js
+// src/utils/api.js - Complete implementation
 import { db, storage } from '../firebase';
 import { 
   collection, 
@@ -31,13 +31,11 @@ const validateEmail = (email) => {
 
 const sanitizeText = (text) => {
   if (typeof text !== 'string') return '';
-  // Remove any potential XSS threats
   return DOMPurify.sanitize(text.trim(), { ALLOWED_TAGS: [] });
 };
 
 const sanitizeHTML = (html) => {
   if (typeof html !== 'string') return '';
-  // Allow basic formatting tags
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p', 'br', 'ul', 'ol', 'li'],
     ALLOWED_ATTR: []
@@ -55,49 +53,24 @@ const validateRecipeData = (data) => {
     errors.push('Introduction must be less than 500 characters');
   }
   
-  if (data.ingredients) {
-    if (!Array.isArray(data.ingredients)) {
-      errors.push('Ingredients must be an array');
-    } else if (data.ingredients.length === 0) {
-      errors.push('At least one ingredient is required');
-    } else if (data.ingredients.some(ing => typeof ing !== 'string' || ing.length > 200)) {
-      errors.push('Each ingredient must be a string less than 200 characters');
-    }
+  if (data.ingredients && !Array.isArray(data.ingredients)) {
+    errors.push('Ingredients must be an array');
   }
   
-  if (data.steps) {
-    if (!Array.isArray(data.steps)) {
-      errors.push('Steps must be an array');
-    } else if (data.steps.length === 0) {
-      errors.push('At least one step is required');
-    } else if (data.steps.some(step => typeof step !== 'string' || step.length > 1000)) {
-      errors.push('Each step must be a string less than 1000 characters');
-    }
+  if (data.steps && !Array.isArray(data.steps)) {
+    errors.push('Steps must be an array');
   }
   
-  if (data.prep_time !== undefined && (!Number.isInteger(Number(data.prep_time)) || Number(data.prep_time) < 0 || Number(data.prep_time) > 1440)) {
-    errors.push('Prep time must be between 0 and 1440 minutes');
+  if (data.prep_time !== undefined && (!Number.isInteger(Number(data.prep_time)) || Number(data.prep_time) < 0)) {
+    errors.push('Prep time must be a positive integer');
   }
   
-  if (data.cook_time !== undefined && (!Number.isInteger(Number(data.cook_time)) || Number(data.cook_time) < 0 || Number(data.cook_time) > 1440)) {
-    errors.push('Cook time must be between 0 and 1440 minutes');
+  if (data.cook_time !== undefined && (!Number.isInteger(Number(data.cook_time)) || Number(data.cook_time) < 0)) {
+    errors.push('Cook time must be a positive integer');
   }
   
-  if (data.servings !== undefined && (!Number.isInteger(Number(data.servings)) || Number(data.servings) < 1 || Number(data.servings) > 100)) {
-    errors.push('Servings must be between 1 and 100');
-  }
-  
-  if (data.categories && Array.isArray(data.categories)) {
-    const allowedCategories = [
-      'Gėrimai ir kokteiliai', 'Desertai', 'Sriubos', 'Užkandžiai',
-      'Varškė', 'Kiaušiniai', 'Daržovės', 'Bulvės',
-      'Mėsa', 'Žuvis ir jūros gėrybės', 'Kruopos ir grūdai',
-      'Be glitimo', 'Be laktozės', 'Gamta lėkštėje', 'Iš močiutės virtuvės'
-    ];
-    
-    if (data.categories.some(cat => !allowedCategories.includes(cat))) {
-      errors.push('Invalid category selected');
-    }
+  if (data.servings !== undefined && (!Number.isInteger(Number(data.servings)) || Number(data.servings) < 1)) {
+    errors.push('Servings must be a positive integer');
   }
   
   if (data.status && !['draft', 'published'].includes(data.status)) {
@@ -126,19 +99,16 @@ const validateImageFile = (file) => {
 };
 
 class SecureFirebaseAPI {
-  // Rate limiting for client-side
   constructor() {
     this.requestCounts = new Map();
     this.resetInterval = 60000; // 1 minute
     this.maxRequests = 100;
     
-    // Reset counts every minute
     setInterval(() => {
       this.requestCounts.clear();
     }, this.resetInterval);
   }
   
-  // Check rate limit
   checkRateLimit(endpoint) {
     const count = this.requestCounts.get(endpoint) || 0;
     if (count >= this.maxRequests) {
@@ -147,16 +117,13 @@ class SecureFirebaseAPI {
     this.requestCounts.set(endpoint, count + 1);
   }
   
-  // Secure image upload
   async uploadImage(file, folder = 'recipes') {
     try {
-      // Validate file
       const validationErrors = validateImageFile(file);
       if (validationErrors.length > 0) {
         throw new Error(validationErrors.join(', '));
       }
       
-      // Generate secure filename
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 8);
       const extension = file.name.split('.').pop().toLowerCase();
@@ -177,7 +144,6 @@ class SecureFirebaseAPI {
     }
   }
   
-  // Get recipes with pagination and filtering
   async getRecipes(params = {}) {
     try {
       this.checkRateLimit('getRecipes');
@@ -185,7 +151,6 @@ class SecureFirebaseAPI {
       const recipesRef = collection(db, 'recipes');
       const constraints = [];
       
-      // Validate and sanitize parameters
       if (params.category && typeof params.category === 'string') {
         const sanitizedCategory = sanitizeText(params.category);
         constraints.push(where('categories', 'array-contains', sanitizedCategory));
@@ -196,13 +161,11 @@ class SecureFirebaseAPI {
           constraints.push(where('status', '==', params.status));
         }
       } else if (!params.isAdmin) {
-        // Only show published recipes for public views
         constraints.push(where('status', '==', 'published'));
       }
       
       constraints.push(orderBy('created_at', 'desc'));
       
-      // Validate page limit
       const pageLimit = Math.min(Math.max(1, parseInt(params.limit) || 12), 50);
       constraints.push(limit(pageLimit));
       
@@ -229,12 +192,10 @@ class SecureFirebaseAPI {
     }
   }
   
-  // Get single recipe
   async getRecipe(id) {
     try {
       this.checkRateLimit('getRecipe');
       
-      // Validate ID format
       if (!id || typeof id !== 'string' || id.length > 50) {
         return {
           success: false,
@@ -264,17 +225,125 @@ class SecureFirebaseAPI {
     }
   }
   
-  // Add comment with validation
-  async addRecipeComment(recipeId, commentData) {
+  async getCategories() {
     try {
-      this.checkRateLimit('addComment');
+      this.checkRateLimit('getCategories');
       
-      // Validate recipe ID
+      const recipesRef = collection(db, 'recipes');
+      const q = query(recipesRef, where('status', '==', 'published'));
+      const snapshot = await getDocs(q);
+      
+      const categoriesMap = new Map();
+      
+      // Predefined categories
+      const allCategories = [
+        'Gėrimai ir kokteiliai', 'Desertai', 'Sriubos', 'Užkandžiai',
+        'Varškė', 'Kiaušiniai', 'Daržovės', 'Bulvės',
+        'Mėsa', 'Žuvis ir jūros gėrybės', 'Kruopos ir grūdai',
+        'Be glitimo', 'Be laktozės', 'Gamta lėkštėje', 'Iš močiutės virtuvės'
+      ];
+      
+      // Initialize all categories with 0 count
+      allCategories.forEach(cat => categoriesMap.set(cat, 0));
+      
+      // Count recipes per category
+      snapshot.docs.forEach(doc => {
+        const recipe = doc.data();
+        if (recipe.categories && Array.isArray(recipe.categories)) {
+          recipe.categories.forEach(category => {
+            if (allCategories.includes(category)) {
+              categoriesMap.set(category, (categoriesMap.get(category) || 0) + 1);
+            }
+          });
+        }
+      });
+      
+      // Convert to array format
+      const categories = Array.from(categoriesMap.entries())
+        .map(([name, count]) => ({ name, count }))
+        .filter(cat => cat.count > 0)
+        .sort((a, b) => b.count - a.count);
+      
+      return {
+        success: true,
+        data: categories
+      };
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw error;
+    }
+  }
+  
+  async getAboutData() {
+    try {
+      this.checkRateLimit('getAboutData');
+      
+      const aboutDoc = await getDoc(doc(db, 'settings', 'about'));
+      
+      if (!aboutDoc.exists()) {
+        // Return default data if not set
+        return {
+          success: true,
+          data: {
+            title: 'Apie Mane',
+            subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
+            intro: 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais...',
+            sections: [],
+            social: {
+              email: 'info@saukstas-meiles.lt',
+              instagram: '#',
+              facebook: '#',
+              pinterest: '#'
+            }
+          }
+        };
+      }
+      
+      return {
+        success: true,
+        data: aboutDoc.data()
+      };
+    } catch (error) {
+      console.error('Error fetching about data:', error);
+      throw error;
+    }
+  }
+  
+  async getRecipeComments(recipeId) {
+    try {
+      this.checkRateLimit('getComments');
+      
       if (!recipeId || typeof recipeId !== 'string') {
         throw new Error('Invalid recipe ID');
       }
       
-      // Validate comment data
+      const commentsRef = collection(db, 'recipes', recipeId, 'comments');
+      const q = query(commentsRef, orderBy('created_at', 'desc'));
+      const snapshot = await getDocs(q);
+      
+      const comments = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      return {
+        success: true,
+        data: comments
+      };
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      throw error;
+    }
+  }
+  
+  async addRecipeComment(recipeId, commentData) {
+    try {
+      this.checkRateLimit('addComment');
+      
+      if (!recipeId || typeof recipeId !== 'string') {
+        throw new Error('Invalid recipe ID');
+      }
+      
       if (!commentData.author || !commentData.content) {
         throw new Error('Author and content are required');
       }
@@ -287,7 +356,6 @@ class SecureFirebaseAPI {
         throw new Error('Comment must be less than 1000 characters');
       }
       
-      // Sanitize inputs
       const sanitizedComment = {
         author: sanitizeText(commentData.author),
         content: sanitizeText(commentData.content),
@@ -312,12 +380,275 @@ class SecureFirebaseAPI {
     }
   }
   
-  // Create recipe with validation
+  async subscribeToNewsletter(email) {
+    try {
+      this.checkRateLimit('subscribeNewsletter');
+      
+      if (!email || !validateEmail(email)) {
+        throw new Error('Invalid email address');
+      }
+      
+      const subscribersRef = collection(db, 'newsletter_subscribers');
+      const existingQuery = query(subscribersRef, where('email', '==', email));
+      const existingSnapshot = await getDocs(existingQuery);
+      
+      if (!existingSnapshot.empty) {
+        return {
+          success: true,
+          message: 'Šis el. pašto adresas jau užprenumeruotas naujienlaiškį.'
+        };
+      }
+      
+      await addDoc(subscribersRef, {
+        email: email.toLowerCase().trim(),
+        subscribed_at: new Date().toISOString(),
+        active: true
+      });
+      
+      return {
+        success: true,
+        message: 'Ačiū už prenumeratą! Naujienlaiškis bus siunčiamas adresu: ' + email
+      };
+    } catch (error) {
+      console.error('Error subscribing to newsletter:', error);
+      throw error;
+    }
+  }
+  
+  async unsubscribeFromNewsletter(email) {
+    try {
+      this.checkRateLimit('unsubscribeNewsletter');
+      
+      if (!email || !validateEmail(email)) {
+        throw new Error('Invalid email address');
+      }
+      
+      const subscribersRef = collection(db, 'newsletter_subscribers');
+      const q = query(subscribersRef, where('email', '==', email));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        return {
+          success: false,
+          message: 'Šis el. pašto adresas nėra prenumeruojamas naujienlaiškį.'
+        };
+      }
+      
+      // Update subscriber to inactive
+      const subscriberDoc = snapshot.docs[0];
+      await updateDoc(doc(db, 'newsletter_subscribers', subscriberDoc.id), {
+        active: false,
+        unsubscribed_at: new Date().toISOString()
+      });
+      
+      return {
+        success: true,
+        message: 'Sėkmingai atsisakėte naujienlaiškio prenumeratos.'
+      };
+    } catch (error) {
+      console.error('Error unsubscribing:', error);
+      throw error;
+    }
+  }
+  
+  async getDashboardStats() {
+    try {
+      this.checkRateLimit('getDashboardStats');
+      
+      // Get recipes count
+      const recipesSnapshot = await getDocs(collection(db, 'recipes'));
+      const publishedRecipes = recipesSnapshot.docs.filter(doc => doc.data().status === 'published');
+      
+      // Get comments count
+      let totalComments = 0;
+      for (const recipeDoc of recipesSnapshot.docs) {
+        const commentsSnapshot = await getDocs(collection(db, 'recipes', recipeDoc.id, 'comments'));
+        totalComments += commentsSnapshot.size;
+      }
+      
+      // Get recent recipes
+      const recentRecipesQuery = query(
+        collection(db, 'recipes'),
+        orderBy('created_at', 'desc'),
+        limit(5)
+      );
+      const recentRecipesSnapshot = await getDocs(recentRecipesQuery);
+      const recentRecipes = recentRecipesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Get recent comments
+      const recentComments = [];
+      for (const recipeDoc of recipesSnapshot.docs) {
+        const recipeData = recipeDoc.data();
+        const commentsQuery = query(
+          collection(db, 'recipes', recipeDoc.id, 'comments'),
+          orderBy('created_at', 'desc'),
+          limit(1)
+        );
+        const commentsSnapshot = await getDocs(commentsQuery);
+        
+        commentsSnapshot.docs.forEach(commentDoc => {
+          recentComments.push({
+            id: commentDoc.id,
+            recipe_id: recipeDoc.id,
+            recipe_title: recipeData.title,
+            ...commentDoc.data()
+          });
+        });
+      }
+      
+      // Sort and limit recent comments
+      recentComments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      
+      return {
+        success: true,
+        data: {
+          recipes: {
+            total: recipesSnapshot.size,
+            published: publishedRecipes.length,
+            draft: recipesSnapshot.size - publishedRecipes.length
+          },
+          comments: {
+            total: totalComments
+          },
+          media: {
+            total: 0 // Implement if needed
+          },
+          recent_recipes: recentRecipes,
+          recent_comments: recentComments.slice(0, 5)
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      throw error;
+    }
+  }
+  
+  // Request handlers
+  async handleGetRequest(endpoint, config) {
+    // Handle recipes endpoints
+    if (endpoint === '/recipes') {
+      return { data: await this.getRecipes(config.params || {}) };
+    } else if (endpoint.match(/^\/recipes\/[\w-]+$/)) {
+      const id = endpoint.split('/').pop();
+      return { data: await this.getRecipe(id) };
+    } else if (endpoint.match(/^\/recipes\/[\w-]+\/comments$/)) {
+      const parts = endpoint.split('/');
+      const recipeId = parts[parts.length - 2];
+      return { data: await this.getRecipeComments(recipeId) };
+    }
+    
+    // Handle categories
+    else if (endpoint === '/categories') {
+      return { data: await this.getCategories() };
+    }
+    
+    // Handle about endpoint
+    else if (endpoint === '/api/about') {
+      return { data: await this.getAboutData() };
+    }
+    
+    // Handle admin endpoints
+    else if (endpoint === '/admin/about') {
+      return { data: await this.getAboutData() };
+    } else if (endpoint === '/admin/recipes') {
+      return { data: await this.getRecipes({ ...config.params, isAdmin: true }) };
+    } else if (endpoint.match(/^\/admin\/recipes\/[\w-]+$/)) {
+      const id = endpoint.split('/').pop();
+      return { data: await this.getRecipe(id) };
+    } else if (endpoint === '/admin/comments') {
+      // Get all comments from all recipes
+      const recipesSnapshot = await getDocs(collection(db, 'recipes'));
+      const allComments = [];
+      
+      for (const recipeDoc of recipesSnapshot.docs) {
+        const recipeData = recipeDoc.data();
+        const commentsSnapshot = await getDocs(collection(db, 'recipes', recipeDoc.id, 'comments'));
+        
+        commentsSnapshot.docs.forEach(commentDoc => {
+          allComments.push({
+            id: commentDoc.id,
+            recipeId: recipeDoc.id,
+            recipeTitle: recipeData.title,
+            ...commentDoc.data()
+          });
+        });
+      }
+      
+      return {
+        data: {
+          success: true,
+          data: allComments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        }
+      };
+    } else if (endpoint === '/admin/newsletter/subscribers') {
+      const subscribersSnapshot = await getDocs(collection(db, 'newsletter_subscribers'));
+      const subscribers = subscribersSnapshot.docs
+        .map(doc => doc.data())
+        .filter(sub => sub.active)
+        .map(sub => sub.email);
+      
+      return {
+        data: {
+          success: true,
+          data: subscribers
+        }
+      };
+    } else if (endpoint === '/admin/dashboard/stats' || endpoint === '/admin/getDashboardStats') {
+      return { data: await this.getDashboardStats() };
+    }
+    
+    throw new Error(`Endpoint not implemented: ${endpoint}`);
+  }
+  
+  async handlePostRequest(endpoint, data) {
+    if (endpoint === '/api/newsletter/subscribe') {
+      return { data: await this.subscribeToNewsletter(data.email) };
+    } else if (endpoint.match(/^\/recipes\/[\w-]+\/comments$/)) {
+      const parts = endpoint.split('/');
+      const recipeId = parts[parts.length - 2];
+      return { data: await this.addRecipeComment(recipeId, data) };
+    } else if (endpoint === '/admin/recipes') {
+      return { data: await this.createRecipe(data.recipeData, data.imageFile) };
+    }
+    
+    throw new Error(`Endpoint not implemented: ${endpoint}`);
+  }
+  
+  async handlePutRequest(endpoint, data) {
+    if (endpoint === '/admin/about') {
+      return { data: await this.updateAboutData(data.aboutData, data.mainImageFile, data.sidebarImageFile) };
+    } else if (endpoint.match(/^\/admin\/recipes\/[\w-]+$/)) {
+      const id = endpoint.split('/').pop();
+      return { data: await this.updateRecipe(id, data.recipeData, data.imageFile) };
+    }
+    
+    throw new Error(`Endpoint not implemented: ${endpoint}`);
+  }
+  
+  async handleDeleteRequest(endpoint) {
+    if (endpoint.match(/^\/admin\/recipes\/[\w-]+$/)) {
+      const id = endpoint.split('/').pop();
+      await deleteDoc(doc(db, 'recipes', id));
+      return { data: { success: true, message: 'Recipe deleted successfully' } };
+    } else if (endpoint.match(/^\/recipes\/[\w-]+\/comments\/[\w-]+$/)) {
+      const parts = endpoint.split('/');
+      const commentId = parts.pop();
+      const recipeId = parts[parts.length - 2];
+      await deleteDoc(doc(db, 'recipes', recipeId, 'comments', commentId));
+      return { data: { success: true, message: 'Comment deleted successfully' } };
+    }
+    
+    throw new Error(`Endpoint not implemented: ${endpoint}`);
+  }
+  
+  // CRUD operations
   async createRecipe(recipeData, imageFile = null) {
     try {
       this.checkRateLimit('createRecipe');
       
-      // Validate recipe data
       const validationErrors = validateRecipeData(recipeData);
       if (validationErrors.length > 0) {
         throw new Error(validationErrors.join(', '));
@@ -325,12 +656,10 @@ class SecureFirebaseAPI {
       
       let imageData = null;
       
-      // Upload image if provided
       if (imageFile) {
         imageData = await this.uploadImage(imageFile, 'recipes');
       }
       
-      // Sanitize all text inputs
       const sanitizedRecipe = {
         title: sanitizeText(recipeData.title),
         intro: sanitizeText(recipeData.intro || ''),
@@ -366,17 +695,14 @@ class SecureFirebaseAPI {
     }
   }
   
-  // Update recipe with validation
   async updateRecipe(id, recipeData, imageFile = null) {
     try {
       this.checkRateLimit('updateRecipe');
       
-      // Validate ID
       if (!id || typeof id !== 'string') {
         throw new Error('Invalid recipe ID');
       }
       
-      // Validate recipe data
       const validationErrors = validateRecipeData(recipeData);
       if (validationErrors.length > 0) {
         throw new Error(validationErrors.join(', '));
@@ -392,7 +718,6 @@ class SecureFirebaseAPI {
         };
       }
       
-      // Sanitize inputs
       let updateData = {
         title: sanitizeText(recipeData.title),
         intro: sanitizeText(recipeData.intro || ''),
@@ -408,9 +733,7 @@ class SecureFirebaseAPI {
         updated_at: serverTimestamp()
       };
       
-      // Handle image update
       if (imageFile) {
-        // Delete old image if exists
         const oldImagePath = existingRecipe.data().imagePath;
         if (oldImagePath) {
           try {
@@ -420,7 +743,6 @@ class SecureFirebaseAPI {
           }
         }
         
-        // Upload new image
         const imageData = await this.uploadImage(imageFile, 'recipes');
         updateData.image = imageData.url;
         updateData.imagePath = `recipes/${imageData.fileName}`;
@@ -442,51 +764,10 @@ class SecureFirebaseAPI {
     }
   }
   
-  // Newsletter subscription with validation
-  async subscribeToNewsletter(email) {
-    try {
-      this.checkRateLimit('subscribeNewsletter');
-      
-      // Validate email
-      if (!email || !validateEmail(email)) {
-        throw new Error('Invalid email address');
-      }
-      
-      const subscribersRef = collection(db, 'newsletter_subscribers');
-      const existingQuery = query(subscribersRef, where('email', '==', email));
-      const existingSnapshot = await getDocs(existingQuery);
-      
-      if (!existingSnapshot.empty) {
-        return {
-          success: true,
-          message: 'Šis el. pašto adresas jau užprenumeruotas naujienlaiškį.'
-        };
-      }
-      
-      await addDoc(subscribersRef, {
-        email: email.toLowerCase().trim(),
-        subscribed_at: new Date().toISOString(),
-        active: true,
-        ip_address: 'hidden', // Don't store actual IP for privacy
-        user_agent: 'hidden' // Don't store user agent for privacy
-      });
-      
-      return {
-        success: true,
-        message: 'Ačiū už prenumeratą! Naujienlaiškis bus siunčiamas adresu: ' + email
-      };
-    } catch (error) {
-      console.error('Error subscribing to newsletter:', error);
-      throw error;
-    }
-  }
-  
-  // Update about data with validation
   async updateAboutData(aboutData, mainImageFile = null, sidebarImageFile = null) {
     try {
       this.checkRateLimit('updateAbout');
       
-      // Validate about data
       if (!aboutData.title || aboutData.title.length > 200) {
         throw new Error('Title is required and must be less than 200 characters');
       }
@@ -504,7 +785,6 @@ class SecureFirebaseAPI {
         }
       };
       
-      // Validate and sanitize sections
       if (aboutData.sections && Array.isArray(aboutData.sections)) {
         updateData.sections = aboutData.sections
           .filter(section => section.title && section.content)
@@ -514,7 +794,6 @@ class SecureFirebaseAPI {
           }));
       }
       
-      // Handle image uploads
       if (mainImageFile) {
         const imageData = await this.uploadImage(mainImageFile, 'about');
         updateData.image = imageData.url;
@@ -545,16 +824,12 @@ class SecureFirebaseAPI {
     }
   }
   
-  // Other methods remain similar but with added validation...
-  
-  // Helper method to delete image
   async deleteImage(imagePath) {
     try {
       const imageRef = ref(storage, imagePath);
       await deleteObject(imageRef);
     } catch (error) {
       console.error('Error deleting image:', error);
-      // Don't throw error if image doesn't exist
     }
   }
 }
@@ -562,14 +837,12 @@ class SecureFirebaseAPI {
 // Create secure API instance
 const secureFirebaseAPI = new SecureFirebaseAPI();
 
-// Export unified API interface with security wrapper
+// Export unified API interface
 export const api = {
   firebaseAPI: secureFirebaseAPI,
   
-  // Wrap all methods with error handling
   get: async (endpoint, config = {}) => {
     try {
-      // Add request validation here
       return await secureFirebaseAPI.handleGetRequest(endpoint, config);
     } catch (error) {
       console.error('API Error:', error);
@@ -584,7 +857,6 @@ export const api = {
   
   post: async (endpoint, data) => {
     try {
-      // Add request validation here
       return await secureFirebaseAPI.handlePostRequest(endpoint, data);
     } catch (error) {
       console.error('API Error:', error);
@@ -599,7 +871,6 @@ export const api = {
   
   put: async (endpoint, data) => {
     try {
-      // Add request validation here
       return await secureFirebaseAPI.handlePutRequest(endpoint, data);
     } catch (error) {
       console.error('API Error:', error);
@@ -614,7 +885,6 @@ export const api = {
   
   delete: async (endpoint) => {
     try {
-      // Add request validation here
       return await secureFirebaseAPI.handleDeleteRequest(endpoint);
     } catch (error) {
       console.error('API Error:', error);
@@ -627,20 +897,3 @@ export const api = {
     }
   }
 };
-
-// Add request handlers to SecureFirebaseAPI class
-SecureFirebaseAPI.prototype.handleGetRequest = async function(endpoint, config) {
-  // Implementation remains the same as in original api.js but with added validation
-  if (endpoint.includes('/recipes') && endpoint.split('/').length === 2) {
-    return { data: await this.getRecipes(config.params || {}) };
-  } else if (endpoint.match(/\/recipes\/[\w-]+\/comments$/)) {
-    const parts = endpoint.split('/');
-    const recipeId = parts[parts.length - 2];
-    return { data: await this.getRecipeComments(recipeId) };
-  }
-  // ... rest of the endpoints
-  
-  throw new Error(`Endpoint not implemented: ${endpoint}`);
-};
-
-// Similar implementations for handlePostRequest, handlePutRequest, handleDeleteRequest...

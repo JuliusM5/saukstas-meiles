@@ -7,6 +7,12 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -16,57 +22,60 @@ service cloud.firestore {
     }
     
     function isValidRecipe() {
-      return request.resource.data.title is string &&
-             request.resource.data.title.size() >= 3 &&
-             request.resource.data.title.size() <= 200 &&
-             request.resource.data.status in ['draft', 'published'] &&
-             (!('ingredients' in request.resource.data) || 
-              request.resource.data.ingredients is list) &&
-             (!('steps' in request.resource.data) || 
-              request.resource.data.steps is list);
+      let data = request.resource.data;
+      return data.title is string &&
+             data.title.size() >= 3 &&
+             data.title.size() <= 200 &&
+             data.status in ['draft', 'published'] &&
+             (!('ingredients' in data) || data.ingredients is list) &&
+             (!('steps' in data) || data.steps is list) &&
+             (!('prep_time' in data) || (data.prep_time is number && data.prep_time >= 0 && data.prep_time <= 1440)) &&
+             (!('cook_time' in data) || (data.cook_time is number && data.cook_time >= 0 && data.cook_time <= 1440)) &&
+             (!('servings' in data) || (data.servings is number && data.servings >= 1 && data.servings <= 100));
     }
     
     function isValidComment() {
-      return request.resource.data.author is string &&
-             request.resource.data.author.size() > 0 &&
-             request.resource.data.author.size() <= 100 &&
-             request.resource.data.content is string &&
-             request.resource.data.content.size() > 0 &&
-             request.resource.data.content.size() <= 1000 &&
-             (!('email' in request.resource.data) || 
-              request.resource.data.email == '' ||
-              isValidEmail(request.resource.data.email));
+      let data = request.resource.data;
+      return data.author is string &&
+             data.author.size() > 0 &&
+             data.author.size() <= 100 &&
+             data.content is string &&
+             data.content.size() > 0 &&
+             data.content.size() <= 1000 &&
+             (!('email' in data) || data.email == '' || isValidEmail(data.email)) &&
+             data.created_at == request.time;
+    }
+    
+    // Admin users collection - only admins can read/write
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if false; // Users should be created through Admin SDK
+      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role; // Can't change own role
+      allow delete: if isAdmin() && !isOwner(userId); // Can't delete self
     }
     
     // Recipes collection
     match /recipes/{recipeId} {
       // Anyone can read published recipes
-      allow read: if resource.data.status == 'published' || isAuthenticated();
+      allow read: if resource.data.status == 'published' || isAdmin();
       
-      // Only authenticated users can create recipes
-      allow create: if isAuthenticated() && isValidRecipe();
-      
-      // Only authenticated users can update their own recipes or any recipe if admin
-      allow update: if isAuthenticated() && isValidRecipe();
-      
-      // Only authenticated users can delete recipes
-      allow delete: if isAuthenticated();
+      // Only admins can create/update/delete
+      allow create: if isAdmin() && isValidRecipe();
+      allow update: if isAdmin() && isValidRecipe();
+      allow delete: if isAdmin();
       
       // Comments subcollection
       match /comments/{commentId} {
-        // Anyone can read approved comments
-        allow read: if resource.data.status == 'approved' || isAuthenticated();
+        // Anyone can read approved comments, admins can read all
+        allow read: if resource.data.status == 'approved' || isAdmin();
         
-        // Anyone can create comments with validation
+        // Anyone can create comments (with auto-approval)
         allow create: if isValidComment() &&
-                        request.resource.data.status == 'approved' &&
-                        request.resource.data.created_at == request.time;
+                        request.resource.data.status == 'approved';
         
-        // Only authenticated users can update comments
-        allow update: if isAuthenticated();
-        
-        // Only authenticated users can delete comments
-        allow delete: if isAuthenticated();
+        // Only admins can update/delete
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
       }
     }
     
@@ -75,8 +84,8 @@ service cloud.firestore {
       // Anyone can read settings
       allow read: if true;
       
-      // Only authenticated users can write settings
-      allow write: if isAuthenticated();
+      // Only admins can write
+      allow write: if isAdmin();
     }
     
     // Newsletter subscribers
@@ -84,49 +93,46 @@ service cloud.firestore {
       // Only allow creation with valid email
       allow create: if isValidEmail(request.resource.data.email) &&
                       request.resource.data.active == true &&
-                      request.resource.data.subscribed_at is timestamp;
+                      request.resource.data.subscribed_at == request.time &&
+                      request.resource.data.keys().hasAll(['email', 'active', 'subscribed_at']) &&
+                      request.resource.data.keys().size() == 3;
       
-      // Only authenticated users can read
-      allow read: if isAuthenticated();
+      // Only admins can read
+      allow read: if isAdmin();
       
-      // Allow users to update their own subscription by email
-      allow update: if isAuthenticated() || 
-                      (resource.data.email == request.resource.data.email &&
-                       request.resource.data.keys().hasAll(['active']));
+      // Allow users to update their own subscription by email (unsubscribe)
+      allow update: if resource.data.email == request.resource.data.email &&
+                      request.resource.data.keys().hasAll(['active']) &&
+                      request.resource.data.active == false;
       
-      // Only authenticated users can delete
-      allow delete: if isAuthenticated();
+      // Only admins can delete
+      allow delete: if isAdmin();
     }
     
-    // Admin users
-    match /users/{userId} {
-      // Users can only read/write their own data
-      allow read, write: if isOwner(userId);
-    }
-    
-    // Media/uploads metadata (if you store it)
+    // Media/uploads metadata
     match /media/{mediaId} {
       // Anyone can read media metadata
       allow read: if true;
       
-      // Only authenticated users can upload
-      allow create: if isAuthenticated() &&
-                      request.resource.data.size <= 5 * 1024 * 1024 && // 5MB limit
+      // Only admins can upload
+      allow create: if isAdmin() &&
+                      request.resource.data.size <= 5 * 1024 * 1024 &&
                       request.resource.data.contentType.matches('image/.*');
       
-      // Only authenticated users can update/delete
-      allow update, delete: if isAuthenticated();
+      // Only admins can update/delete
+      allow update, delete: if isAdmin();
     }
     
     // Audit logs (recommended for security)
     match /audit_logs/{logId} {
-      // Only authenticated users can read logs
-      allow read: if isAuthenticated();
+      // Only admins can read logs
+      allow read: if isAdmin();
       
-      // Logs can only be created, never updated or deleted
+      // Logs can only be created by authenticated users, never updated or deleted
       allow create: if isAuthenticated() &&
                       request.resource.data.timestamp == request.time &&
-                      request.resource.data.userId == request.auth.uid;
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.keys().hasAll(['timestamp', 'userId', 'action', 'details']);
       allow update, delete: if false;
     }
     
