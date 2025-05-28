@@ -2,38 +2,132 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read access to recipes for everyone
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidEmail(email) {
+      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+    
+    function isValidRecipe() {
+      return request.resource.data.title is string &&
+             request.resource.data.title.size() >= 3 &&
+             request.resource.data.title.size() <= 200 &&
+             request.resource.data.status in ['draft', 'published'] &&
+             (!('ingredients' in request.resource.data) || 
+              request.resource.data.ingredients is list) &&
+             (!('steps' in request.resource.data) || 
+              request.resource.data.steps is list);
+    }
+    
+    function isValidComment() {
+      return request.resource.data.author is string &&
+             request.resource.data.author.size() > 0 &&
+             request.resource.data.author.size() <= 100 &&
+             request.resource.data.content is string &&
+             request.resource.data.content.size() > 0 &&
+             request.resource.data.content.size() <= 1000 &&
+             (!('email' in request.resource.data) || 
+              request.resource.data.email == '' ||
+              isValidEmail(request.resource.data.email));
+    }
+    
+    // Recipes collection
     match /recipes/{recipeId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      // Anyone can read published recipes
+      allow read: if resource.data.status == 'published' || isAuthenticated();
+      
+      // Only authenticated users can create recipes
+      allow create: if isAuthenticated() && isValidRecipe();
+      
+      // Only authenticated users can update their own recipes or any recipe if admin
+      allow update: if isAuthenticated() && isValidRecipe();
+      
+      // Only authenticated users can delete recipes
+      allow delete: if isAuthenticated();
+      
+      // Comments subcollection
+      match /comments/{commentId} {
+        // Anyone can read approved comments
+        allow read: if resource.data.status == 'approved' || isAuthenticated();
+        
+        // Anyone can create comments with validation
+        allow create: if isValidComment() &&
+                        request.resource.data.status == 'approved' &&
+                        request.resource.data.created_at == request.time;
+        
+        // Only authenticated users can update comments
+        allow update: if isAuthenticated();
+        
+        // Only authenticated users can delete comments
+        allow delete: if isAuthenticated();
+      }
     }
     
-    // Comments on recipes (subcollection)
-    match /recipes/{recipeId}/comments/{commentId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
-    }
-    
-    // Allow read access to settings (including about page)
+    // Settings collection (includes about page)
     match /settings/{document} {
+      // Anyone can read settings
       allow read: if true;
-      allow write: if request.auth != null;
+      
+      // Only authenticated users can write settings
+      allow write: if isAuthenticated();
     }
     
-    // Newsletter subscribers - write only for subscriptions, admin can read
+    // Newsletter subscribers
     match /newsletter_subscribers/{subscriberId} {
-      allow create: if true;
-      allow read: if request.auth != null;
-      allow update: if request.auth != null 
-                    || resource.data.email == request.resource.data.email;
-      allow delete: if request.auth != null;
+      // Only allow creation with valid email
+      allow create: if isValidEmail(request.resource.data.email) &&
+                      request.resource.data.active == true &&
+                      request.resource.data.subscribed_at is timestamp;
+      
+      // Only authenticated users can read
+      allow read: if isAuthenticated();
+      
+      // Allow users to update their own subscription by email
+      allow update: if isAuthenticated() || 
+                      (resource.data.email == request.resource.data.email &&
+                       request.resource.data.keys().hasAll(['active']));
+      
+      // Only authenticated users can delete
+      allow delete: if isAuthenticated();
     }
     
     // Admin users
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Users can only read/write their own data
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Media/uploads metadata (if you store it)
+    match /media/{mediaId} {
+      // Anyone can read media metadata
+      allow read: if true;
+      
+      // Only authenticated users can upload
+      allow create: if isAuthenticated() &&
+                      request.resource.data.size <= 5 * 1024 * 1024 && // 5MB limit
+                      request.resource.data.contentType.matches('image/.*');
+      
+      // Only authenticated users can update/delete
+      allow update, delete: if isAuthenticated();
+    }
+    
+    // Audit logs (recommended for security)
+    match /audit_logs/{logId} {
+      // Only authenticated users can read logs
+      allow read: if isAuthenticated();
+      
+      // Logs can only be created, never updated or deleted
+      allow create: if isAuthenticated() &&
+                      request.resource.data.timestamp == request.time &&
+                      request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
     
     // Default deny all

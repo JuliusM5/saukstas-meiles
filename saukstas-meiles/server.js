@@ -1,5 +1,3 @@
-console.log('GMAIL_USER:', process.env.GMAIL_USER);
-console.log('GMAIL_APP_PASSWORD length:', process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.length : 0);
 require('dotenv').config();
 const jsonServer = require('json-server');
 const express = require('express');
@@ -9,1621 +7,813 @@ const middlewares = jsonServer.defaults();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const nodemailer = require('nodemailer'); // Use nodemailer for email
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const validator = require('validator');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-// Create a transporter object using your email provider's details
-const transporter = nodemailer.createTransport({
-  service: 'gmail', // Use a predefined service
-  auth: {
-    user: 'your-actual-gmail@gmail.com', // Your actual Gmail
-    pass: 'your-app-password' // Generate an app password in your Google account
-  }
-});
-
-// Verify connection to email server
-transporter.verify(function(error, success) {
-  if (error) {
-    console.error('SMTP server connection error:', error);
-  } else {
-    console.log("SMTP server is ready to send emails");
-  }
-});
-
-// Create a file to store the about page data
-const aboutFilePath = path.join(__dirname, 'about.json');
-// Create a file to store newsletter subscribers
-const subscribersFilePath = path.join(__dirname, 'subscribers.json');
-
-// Function to send newsletter emails using nodemailer
-const sendNewsletterEmail = async (subject, recipients) => {
-  try {
-    const batchSize = 20; // Process in smaller batches to avoid overloading
-    let successCount = 0;
-    
-    // Process recipients in batches
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      const batch = recipients.slice(i, i + batchSize);
-      
-      // Send emails to each recipient in the batch
-      for (const recipient of batch) {
-        try {
-          // Send mail with defined transport object
-          const info = await transporter.sendMail({
-            from: '"Šaukštas Meilės" <owl.business.tree@gmail.com>', // Replace with your email
-            to: recipient.email,
-            subject: subject,
-            html: recipient.htmlContent
-          });
-          
-          console.log(`Message sent: ${info.messageId} to ${recipient.email}`);
-          successCount++;
-          
-          // Add a short delay between emails to avoid being flagged as spam
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } catch (err) {
-          console.error(`Failed to send email to ${recipient.email}:`, err);
-        }
-      }
-      
-      // Add a delay between batches
-      if (i + batchSize < recipients.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-    }
-    
-    console.log(`Successfully sent ${successCount} out of ${recipients.length} emails`);
-    return successCount > 0;
-  } catch (error) {
-    console.error('Error sending newsletter:', error);
-    return false;
-  }
-};
-
-// Helper function to read about data
-const getAboutData = () => {
-  try {
-    if (fs.existsSync(aboutFilePath)) {
-      const data = fs.readFileSync(aboutFilePath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Error reading about data:', error);
-  }
-  
-  // Default data if file doesn't exist or can't be read
-  return {
-    title: 'Apie Mane',
-    subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
-    intro: 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais, kur kiekvienas žolės stiebelis, vėjo dvelksmas ar laukinė uoga tampa įkvėpimu naujam skoniui.',
-    sections: [
-      {
-        title: 'Mano istorija',
-        content: 'Viskas prasidėjo mažoje kaimo virtuvėje, kur mano močiutė ruošdavo kvapnius patiekalus iš paprastų ingredientų.'
-      },
-      {
-        title: 'Mano filosofija',
-        content: 'Tikiu, kad maistas yra daugiau nei tik kuras mūsų kūnui – tai būdas sujungti žmones, išsaugoti tradicijas ir kurti naujus prisiminimus.'
-      }
-    ],
-    social: {
-      email: 'info@saukstas-meiles.lt',
-      instagram: '#',
-      facebook: '#',
-      pinterest: '#'
+// Security: Use helmet for security headers
+server.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
     },
-    image: null, // Main profile image for About page
-    sidebar_image: null // Smaller image for sidebar
-  };
+  },
+}));
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // limit sensitive operations
+  message: 'Too many attempts, please try again later.'
+});
+
+// Apply rate limiting to API routes
+server.use('/api', apiLimiter);
+server.use('/admin/login', strictLimiter);
+server.use('/api/newsletter/subscribe', strictLimiter);
+
+// Validate environment variables
+const requiredEnvVars = ['GMAIL_USER', 'GMAIL_APP_PASSWORD', 'SESSION_SECRET'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
+
+// Create transporter with environment variables
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
+
+// JWT secret
+const JWT_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(64).toString('hex');
+
+// Authentication middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Access denied' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ success: false, error: 'Invalid token' });
+    }
+    req.user = user;
+    next();
+  });
 };
 
-// Helper function to save about data
-const saveAboutData = (data) => {
+// Input validation helpers
+const validateEmail = (email) => {
+  return validator.isEmail(email);
+};
+
+const sanitizeInput = (input) => {
+  if (typeof input !== 'string') return input;
+  return validator.escape(input.trim());
+};
+
+const validateRecipeData = (data) => {
+  const errors = [];
+  
+  if (!data.title || data.title.length < 3 || data.title.length > 200) {
+    errors.push('Title must be between 3 and 200 characters');
+  }
+  
+  if (data.ingredients && !Array.isArray(data.ingredients)) {
+    errors.push('Ingredients must be an array');
+  }
+  
+  if (data.steps && !Array.isArray(data.steps)) {
+    errors.push('Steps must be an array');
+  }
+  
+  if (data.prep_time && (!Number.isInteger(Number(data.prep_time)) || Number(data.prep_time) < 0)) {
+    errors.push('Prep time must be a positive integer');
+  }
+  
+  if (data.cook_time && (!Number.isInteger(Number(data.cook_time)) || Number(data.cook_time) < 0)) {
+    errors.push('Cook time must be a positive integer');
+  }
+  
+  if (data.servings && (!Number.isInteger(Number(data.servings)) || Number(data.servings) < 1)) {
+    errors.push('Servings must be a positive integer');
+  }
+  
+  return errors;
+};
+
+// Secure file paths
+const aboutFilePath = path.join(__dirname, 'data', 'about.json');
+const subscribersFilePath = path.join(__dirname, 'data', 'subscribers.json');
+
+// Ensure data directory exists
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Secure file operations
+const readJsonFile = (filePath) => {
   try {
-    fs.writeFileSync(aboutFilePath, JSON.stringify(data, null, 2), 'utf8');
+    if (!fs.existsSync(filePath)) return null;
+    const data = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error(`Error reading file ${filePath}:`, error);
+    return null;
+  }
+};
+
+const writeJsonFile = (filePath, data) => {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
     return true;
   } catch (error) {
-    console.error('Error saving about data:', error);
+    console.error(`Error writing file ${filePath}:`, error);
     return false;
   }
 };
 
-// Helper function to read subscribers data
-const getSubscribers = () => {
-  try {
-    if (fs.existsSync(subscribersFilePath)) {
-      const data = fs.readFileSync(subscribersFilePath, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Error reading subscribers data:', error);
-  }
-  
-  // Default data if file doesn't exist or can't be read
-  return { subscribers: [] };
-};
-
-// Helper function to save subscribers data
-const saveSubscribers = (data) => {
-  try {
-    fs.writeFileSync(subscribersFilePath, JSON.stringify(data, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error saving subscribers data:', error);
-    return false;
-  }
-};
-
-// Email template for recipe notifications
-const getNewsletterTemplate = (recipe, recipientEmail) => {
-  const recipeUrl = `http://localhost:3000/recipe/${recipe.id}`;
-  const unsubscribeUrl = `http://localhost:3000/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
-  
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Naujas receptas: ${recipe.title}</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          margin: 0;
-          padding: 0;
-        }
-        .container {
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .header {
-          text-align: center;
-          padding: 20px 0;
-          border-bottom: 2px solid #eee8e0;
-        }
-        .logo {
-          font-family: 'Playfair Display', serif;
-          font-size: 24px;
-          color: #7f4937;
-        }
-        .recipe-title {
-          font-size: 24px;
-          color: #7f4937;
-          margin: 20px 0;
-          text-align: center;
-        }
-        .recipe-image {
-          width: 100%;
-          max-height: 300px;
-          object-fit: cover;
-          border-radius: 5px;
-          margin: 20px 0;
-        }
-        .recipe-intro {
-          font-style: italic;
-          color: #7f4937;
-          margin-bottom: 20px;
-          padding-left: 15px;
-          border-left: 3px solid #7f4937;
-        }
-        .cta-button {
-          display: inline-block;
-          background-color: #7f4937;
-          color: white;
-          text-decoration: none;
-          padding: 10px 20px;
-          border-radius: 4px;
-          margin: 20px 0;
-        }
-        .footer {
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 1px solid #eee8e0;
-          text-align: center;
-          font-size: 12px;
-          color: #7a7a7a;
-        }
-        .unsubscribe {
-          color: #7f4937;
-          text-decoration: underline;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="logo">Šaukštas Meilės</div>
-        </div>
-        
-        <h1 class="recipe-title">${recipe.title}</h1>
-        
-        ${recipe.image ? 
-          `<img src="http://localhost:3000/img/recipes/${recipe.image}" alt="${recipe.title}" class="recipe-image">` : 
-          ''}
-        
-        ${recipe.intro ? 
-          `<div class="recipe-intro">${recipe.intro}</div>` : 
-          ''}
-        
-        <div style="text-align: center;">
-          <a href="${recipeUrl}" class="cta-button">Skaityti visą receptą</a>
-        </div>
-        
-        <div class="footer">
-          <p>Šaukštas Meilės - naminiai lietuviški receptai su meile</p>
-          <p>
-            <a href="${unsubscribeUrl}" class="unsubscribe">Atsisakyti naujienlaiškio prenumeratos</a>
-          </p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
-
-// Template for manual newsletters
-const getManualNewsletterTemplate = (subject, htmlContent, recipientEmail) => {
-  const unsubscribeUrl = `http://localhost:3000/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
-  
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${subject}</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          margin: 0;
-          padding: 0;
-        }
-        .container {
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .header {
-          text-align: center;
-          padding: 20px 0;
-          border-bottom: 2px solid #eee8e0;
-        }
-        .logo {
-          font-family: 'Playfair Display', serif;
-          font-size: 24px;
-          color: #7f4937;
-        }
-        .content {
-          margin: 30px 0;
-        }
-        .footer {
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 1px solid #eee8e0;
-          text-align: center;
-          font-size: 12px;
-          color: #7a7a7a;
-        }
-        .unsubscribe {
-          color: #7f4937;
-          text-decoration: underline;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="logo">Šaukštas Meilės</div>
-        </div>
-        
-        <div class="content">
-          ${htmlContent}
-        </div>
-        
-        <div class="footer">
-          <p>Šaukštas Meilės - naminiai lietuviški receptai su meile</p>
-          <p>
-            <a href="${unsubscribeUrl}" class="unsubscribe">Atsisakyti naujienlaiškio prenumeratos</a>
-          </p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
-
-// Initialize the about.json file if it doesn't exist
-if (!fs.existsSync(aboutFilePath)) {
-  saveAboutData(getAboutData());
-  console.log('Created default about.json file');
-}
-
-// Initialize the subscribers.json file if it doesn't exist
-if (!fs.existsSync(subscribersFilePath)) {
-  saveSubscribers({ subscribers: [] });
-  console.log('Created default subscribers.json file');
-}
-
-// Function to update categories list based on recipes
-function updateCategoriesList() {
-  console.log("Updating categories list...");
-  
-  // Get all recipes
-  const recipes = router.db.get('recipes').value();
-  
-  // Create a categories map to track counts
-  const categoriesMap = {};
-  
-  // Count occurrences of each category
-  recipes.forEach(recipe => {
-    if (recipe.categories && Array.isArray(recipe.categories)) {
-      recipe.categories.forEach(category => {
-        if (category) {
-          if (!categoriesMap[category]) {
-            categoriesMap[category] = 1;
-          } else {
-            categoriesMap[category] += 1;
-          }
-        }
-      });
-    }
-  });
-  
-  // Convert map to array
-  const categoriesArray = Object.keys(categoriesMap).map(name => ({
-    name,
-    count: categoriesMap[name]
-  }));
-  
-  // Sort by name
-  categoriesArray.sort((a, b) => a.name.localeCompare(b.name));
-  
-  // Update categories in database
-  router.db.set('categories', categoriesArray).write();
-  
-  console.log(`Updated categories list with ${categoriesArray.length} categories`);
-  return categoriesArray;
-}
-
-// Make sure the directories for images exist
-const ensureDirectoriesExist = () => {
-  const directories = [
-    path.join(__dirname, 'public', 'img'),
-    path.join(__dirname, 'public', 'img', 'recipes'),
-    path.join(__dirname, 'public', 'img', 'about')
-  ];
-  
-  directories.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      console.log(`Created directory: ${dir}`);
-    }
-  });
-};
-
-// Call this function when server starts
-ensureDirectoriesExist();
-
-// Configure multer storage
+// Multer configuration with security improvements
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Define upload directory based on request URL
-    let uploadDir;
+    const uploadDir = req.url.includes('/admin/about') 
+      ? path.join(__dirname, 'public', 'img', 'about')
+      : path.join(__dirname, 'public', 'img', 'recipes');
     
-    if (req.url.includes('/admin/about')) {
-      uploadDir = path.join(__dirname, 'public', 'img', 'about');
-    } else {
-      uploadDir = path.join(__dirname, 'public', 'img', 'recipes');
-    }
-    
-    console.log("Upload directory:", uploadDir);
-    
-    // Ensure directory exists
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
-      console.log("Created upload directory");
     }
     
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Create a safe filename without spaces
-    const timestamp = Date.now();
-    const cleanName = file.originalname.replace(/\s+/g, '_');
-    const filename = `${timestamp}-${cleanName}`;
-    console.log("Saving file as:", filename);
-    cb(null, filename);
+    // Generate secure filename
+    const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
+    const ext = path.extname(file.originalname);
+    const safeName = `upload-${uniqueSuffix}${ext}`;
+    cb(null, safeName);
   }
 });
 
-// Create upload middleware
 const upload = multer({ 
   storage: storage,
   fileFilter: (req, file, cb) => {
-    // Only allow images
-    if (file.mimetype.startsWith('image/')) {
+    // Whitelist allowed image types
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed!'), false);
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF and WebP are allowed.'), false);
     }
   },
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+    files: 1 // Only one file at a time
   }
 });
 
-// Set default middlewares (logger, static, cors and no-cache)
+// Initialize default data files
+const initializeDataFiles = () => {
+  if (!fs.existsSync(aboutFilePath)) {
+    const defaultAbout = {
+      title: 'Apie Mane',
+      subtitle: 'Kelionė į širdį per maistą, pilną gamtos dovanų, švelnumo ir paprastumo',
+      intro: 'Sveiki, esu Lidija – keliaujanti miško takeliais, pievomis ir laukais...',
+      sections: [],
+      social: {
+        email: 'info@saukstas-meiles.lt',
+        instagram: '#',
+        facebook: '#',
+        pinterest: '#'
+      }
+    };
+    writeJsonFile(aboutFilePath, defaultAbout);
+  }
+  
+  if (!fs.existsSync(subscribersFilePath)) {
+    writeJsonFile(subscribersFilePath, { subscribers: [] });
+  }
+};
+
+initializeDataFiles();
+
+// Middleware
 server.use(middlewares);
-
-// Add static file serving middleware
 server.use(express.static(path.join(__dirname, 'public')));
-console.log("Serving static files from:", path.join(__dirname, 'public'));
-
-// Parse JSON request body
 server.use(jsonServer.bodyParser);
 
-// Middleware to handle form data
+// CORS configuration for production
 server.use((req, res, next) => {
-  // Log incoming requests
-  console.log(`${req.method} ${req.url}`);
+  const allowedOrigins = ['http://localhost:3000', 'https://saukstasmeiles.web.app'];
+  const origin = req.headers.origin;
   
-  if ((req.method === 'POST' || req.method === 'PUT') && 
-      (req.url.includes('/admin/recipes') || req.url.includes('/api/recipes'))) {
-    console.log("Recipe data received:", req.body);
-    
-    // Handle arrays sent as individual form fields
-    const body = req.body;
-    
-    // Process categories
-    if (body['categories[]']) {
-      body.categories = Array.isArray(body['categories[]']) 
-        ? body['categories[]'] 
-        : [body['categories[]']];
-      delete body['categories[]'];
-    }
-    
-    // Process ingredients
-    if (body['ingredients[]']) {
-      body.ingredients = Array.isArray(body['ingredients[]']) 
-        ? body['ingredients[]'] 
-        : [body['ingredients[]']];
-      delete body['ingredients[]'];
-    }
-    
-    // Process steps
-    if (body['steps[]']) {
-      body.steps = Array.isArray(body['steps[]']) 
-        ? body['steps[]'] 
-        : [body['steps[]']];
-      delete body['steps[]'];
-    }
-    
-    // Process tags
-    if (body['tags[]']) {
-      body.tags = Array.isArray(body['tags[]']) 
-        ? body['tags[]'] 
-        : [body['tags[]']];
-      delete body['tags[]'];
-    }
-    
-    // Add creation date if needed
-    if (req.method === 'POST' && !body.created_at) {
-      body.created_at = new Date().toISOString();
-    }
-    
-    // Add ID if needed
-    if (req.method === 'POST' && !body.id) {
-      body.id = Date.now().toString();
-    }
-    
-    console.log("Processed recipe data:", body);
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
   }
   
   next();
 });
 
-// Add creation date to posts
-server.use((req, res, next) => {
-  if (req.method === 'POST') {
-    req.body.created_at = new Date().toISOString();
+// ==================== AUTHENTICATION ROUTES ====================
+
+server.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username and password are required'
+      });
+    }
+    
+    // In production, fetch from database
+    const user = router.db.get('users').find({ username }).value();
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+    
+    // Verify password (assuming passwords are hashed in database)
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
-  next();
 });
 
-// ==================== NEWSLETTER API ROUTES ====================
+server.get('/api/auth/verify', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    user: {
+      id: req.user.id,
+      username: req.user.username
+    }
+  });
+});
 
-// Endpoint to subscribe to newsletter
-server.post('/api/newsletter/subscribe', (req, res) => {
+// ==================== NEWSLETTER ROUTES ====================
+
+server.post('/api/newsletter/subscribe', async (req, res) => {
   try {
     const { email } = req.body;
     
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
-      return res.status(400).jsonp({
+    // Validate email
+    if (!email || !validateEmail(email)) {
+      return res.status(400).json({
         success: false,
         error: 'Prašome įvesti teisingą el. pašto adresą.'
       });
     }
     
-    // Get current subscribers
-    const data = getSubscribers();
+    const data = readJsonFile(subscribersFilePath) || { subscribers: [] };
     
-    // Check if email already exists
+    // Check if already subscribed
     if (data.subscribers.includes(email)) {
-      return res.jsonp({
+      return res.json({
         success: true,
         message: 'Šis el. pašto adresas jau užprenumeruotas naujienlaiškį.'
       });
     }
     
-    // Add new subscriber
+    // Add subscriber
     data.subscribers.push(email);
     
-    // Save updated list
-    if (saveSubscribers(data)) {
-      console.log(`New newsletter subscriber: ${email}`);
-      return res.jsonp({
+    if (writeJsonFile(subscribersFilePath, data)) {
+      // Log subscription (consider using proper logging library)
+      console.log(`New subscriber: ${email} at ${new Date().toISOString()}`);
+      
+      return res.json({
         success: true,
         message: 'Ačiū už prenumeratą! Naujienlaiškis bus siunčiamas adresu: ' + email
       });
     } else {
-      return res.status(500).jsonp({
+      return res.status(500).json({
         success: false,
         error: 'Klaida išsaugant prenumeratą. Bandykite vėliau.'
       });
     }
   } catch (error) {
-    console.error('Error in newsletter subscription:', error);
-    return res.status(500).jsonp({
+    console.error('Newsletter subscription error:', error);
+    return res.status(500).json({
       success: false,
       error: 'Vidinė serverio klaida. Bandykite vėliau.'
     });
   }
 });
 
-// Endpoint to unsubscribe from newsletter
 server.get('/api/newsletter/unsubscribe', (req, res) => {
   try {
     const { email } = req.query;
     
-    if (!email) {
-      return res.status(400).jsonp({
+    if (!email || !validateEmail(email)) {
+      return res.status(400).json({
         success: false,
-        error: 'El. pašto adresas nenurodytas.'
+        error: 'Neteisingas el. pašto adresas.'
       });
     }
     
-    // Get current subscribers
-    const data = getSubscribers();
+    const data = readJsonFile(subscribersFilePath) || { subscribers: [] };
     
-    // Check if email exists in the list
     if (!data.subscribers.includes(email)) {
-      return res.jsonp({
+      return res.json({
         success: false,
         message: 'Šis el. pašto adresas nėra prenumeruojamas naujienlaiškį.'
       });
     }
     
-    // Remove the email from subscribers
+    // Remove subscriber
     data.subscribers = data.subscribers.filter(e => e !== email);
     
-    // Save updated list
-    if (saveSubscribers(data)) {
-      console.log(`Unsubscribed: ${email}`);
-      return res.jsonp({
+    if (writeJsonFile(subscribersFilePath, data)) {
+      console.log(`Unsubscribed: ${email} at ${new Date().toISOString()}`);
+      
+      return res.json({
         success: true,
         message: 'Sėkmingai atsisakėte naujienlaiškio prenumeratos.'
       });
     } else {
-      return res.status(500).jsonp({
+      return res.status(500).json({
         success: false,
-        error: 'Klaida atsisakant naujienlaiškio prenumeratos. Bandykite vėliau.'
+        error: 'Klaida atsisakant naujienlaiškio prenumeratos.'
       });
     }
   } catch (error) {
-    console.error('Error in newsletter unsubscription:', error);
-    return res.status(500).jsonp({
+    console.error('Newsletter unsubscription error:', error);
+    return res.status(500).json({
       success: false,
       error: 'Vidinė serverio klaida. Bandykite vėliau.'
     });
   }
 });
 
-// Admin endpoint to view newsletter subscribers
-server.get('/admin/newsletter/subscribers', (req, res) => {
+// ==================== ADMIN ROUTES (Protected) ====================
+
+// Get newsletter subscribers (admin only)
+server.get('/admin/newsletter/subscribers', authenticateToken, (req, res) => {
   try {
-    const data = getSubscribers();
-    res.jsonp({
+    const data = readJsonFile(subscribersFilePath) || { subscribers: [] };
+    res.json({
       success: true,
       data: data.subscribers
     });
   } catch (error) {
     console.error('Error getting subscribers:', error);
-    res.status(500).jsonp({
+    res.status(500).json({
       success: false,
       error: 'Klaida gaunant prenumeratorių sąrašą.'
     });
   }
 });
 
-// Delete a subscriber from admin panel
-server.delete('/admin/newsletter/subscribers/:email', (req, res) => {
+// Delete subscriber (admin only)
+server.delete('/admin/newsletter/subscribers/:email', authenticateToken, (req, res) => {
   try {
     const email = decodeURIComponent(req.params.email);
     
-    // Get current subscribers
-    const data = getSubscribers();
+    if (!validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Neteisingas el. pašto adresas.'
+      });
+    }
     
-    // Check if email exists
+    const data = readJsonFile(subscribersFilePath) || { subscribers: [] };
+    
     if (!data.subscribers.includes(email)) {
-      return res.status(404).jsonp({
+      return res.status(404).json({
         success: false,
         error: 'Prenumeratorius nerastas.'
       });
     }
     
-    // Remove the email
     data.subscribers = data.subscribers.filter(e => e !== email);
     
-    // Save updated list
-    if (saveSubscribers(data)) {
-      return res.jsonp({
+    if (writeJsonFile(subscribersFilePath, data)) {
+      return res.json({
         success: true,
         message: 'Prenumeratorius sėkmingai pašalintas.'
       });
     } else {
-      return res.status(500).jsonp({
+      return res.status(500).json({
         success: false,
-        error: 'Klaida šalinant prenumeratorių. Bandykite vėliau.'
+        error: 'Klaida šalinant prenumeratorių.'
       });
     }
   } catch (error) {
     console.error('Error deleting subscriber:', error);
-    return res.status(500).jsonp({
+    return res.status(500).json({
       success: false,
-      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+      error: 'Vidinė serverio klaida.'
     });
   }
 });
 
-// Send manual newsletter
-server.post('/admin/newsletter/send', async (req, res) => {
+// Send newsletter (admin only)
+server.post('/admin/newsletter/send', authenticateToken, async (req, res) => {
   try {
     const { subject, content } = req.body;
     
     if (!subject || !content) {
-      return res.status(400).jsonp({
+      return res.status(400).json({
         success: false,
         error: 'Prašome nurodyti temą ir turinį.'
       });
     }
     
-    // Get subscribers
-    const subscribersData = getSubscribers();
+    // Sanitize inputs
+    const sanitizedSubject = sanitizeInput(subject);
+    const sanitizedContent = validator.escape(content); // Basic HTML escaping
+    
+    const subscribersData = readJsonFile(subscribersFilePath) || { subscribers: [] };
     
     if (subscribersData.subscribers.length === 0) {
-      return res.status(400).jsonp({
+      return res.status(400).json({
         success: false,
-        error: 'Nėra prenumeratorių, kuriems būtų galima išsiųsti naujienlaiškį.'
+        error: 'Nėra prenumeratorių.'
       });
     }
     
-    // Prepare recipients with personalized content
-    const recipients = subscribersData.subscribers.map(email => ({
-      email,
-      htmlContent: getManualNewsletterTemplate(subject, content, email)
-    }));
+    // In production, use a queue system for sending emails
+    // This is a simplified version
+    let successCount = 0;
     
-    // Send the newsletter
-    const success = await sendNewsletterEmail(subject, recipients);
-    
-    if (success) {
-      console.log(`Manual newsletter sent to ${subscribersData.subscribers.length} subscribers`);
-      return res.jsonp({
-        success: true,
-        message: `Naujienlaiškis sėkmingai išsiųstas ${subscribersData.subscribers.length} prenumeratoriams.`
-      });
-    } else {
-      return res.status(500).jsonp({
-        success: false,
-        error: 'Klaida siunčiant naujienlaiškį. Bandykite vėliau.'
-      });
+    for (const email of subscribersData.subscribers) {
+      try {
+        await transporter.sendMail({
+          from: `"Šaukštas Meilės" <${process.env.GMAIL_USER}>`,
+          to: email,
+          subject: sanitizedSubject,
+          html: `
+            <html>
+              <body>
+                ${sanitizedContent}
+                <hr>
+                <p><a href="${process.env.APP_URL || 'http://localhost:3000'}/unsubscribe?email=${encodeURIComponent(email)}">Atsisakyti prenumeratos</a></p>
+              </body>
+            </html>
+          `
+        });
+        successCount++;
+        
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (emailError) {
+        console.error(`Failed to send to ${email}:`, emailError);
+      }
     }
+    
+    return res.json({
+      success: true,
+      message: `Naujienlaiškis išsiųstas ${successCount} iš ${subscribersData.subscribers.length} prenumeratorių.`
+    });
   } catch (error) {
-    console.error('Error in sending manual newsletter:', error);
-    return res.status(500).jsonp({
+    console.error('Error sending newsletter:', error);
+    return res.status(500).json({
       success: false,
-      error: 'Vidinė serverio klaida. Bandykite vėliau.'
+      error: 'Klaida siunčiant naujienlaiškį.'
     });
   }
 });
 
-// Endpoint to send a test newsletter email
-server.post('/admin/newsletter/test', async (req, res) => {
+// ==================== RECIPE ROUTES ====================
+
+// Create recipe (admin only)
+server.post('/admin/recipes', authenticateToken, upload.single('image'), async (req, res) => {
   try {
-    const { email, recipeId } = req.body;
+    const validationErrors = validateRecipeData(req.body);
     
-    if (!email || !recipeId) {
-      return res.status(400).jsonp({
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
         success: false,
-        error: 'Reikalingas el. pašto adresas ir recepto ID.'
+        errors: validationErrors
       });
     }
     
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).jsonp({
-        success: false,
-        error: 'Prašome įvesti teisingą el. pašto adresą.'
-      });
+    // Sanitize text inputs
+    const sanitizedRecipe = {
+      ...req.body,
+      title: sanitizeInput(req.body.title),
+      intro: sanitizeInput(req.body.intro || ''),
+      notes: sanitizeInput(req.body.notes || ''),
+      id: Date.now().toString(),
+      created_at: new Date().toISOString()
+    };
+    
+    // Add image if uploaded
+    if (req.file) {
+      sanitizedRecipe.image = req.file.filename;
     }
     
-    // Get the recipe
-    const recipe = router.db.get('recipes').find({ id: recipeId }).value();
+    // Save to database
+    router.db.get('recipes').push(sanitizedRecipe).write();
     
-    if (!recipe) {
-      return res.status(404).jsonp({
+    res.json({
+      success: true,
+      data: sanitizedRecipe
+    });
+  } catch (error) {
+    console.error('Error creating recipe:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Klaida išsaugant receptą.'
+    });
+  }
+});
+
+// Update recipe (admin only)
+server.put('/admin/recipes/:id', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const existingRecipe = router.db.get('recipes').find({ id }).value();
+    
+    if (!existingRecipe) {
+      return res.status(404).json({
         success: false,
         error: 'Receptas nerastas.'
       });
     }
     
-    // Prepare HTML content using the template
-    const htmlContent = getNewsletterTemplate(recipe, email);
+    const validationErrors = validateRecipeData(req.body);
     
-    try {
-      // Send mail with defined transport object
-      const info = await transporter.sendMail({
-        from: '"Šaukštas Meilės" <your-email@your-domain.com>', // Replace with your email
-        to: email,
-        subject: `Naujas receptas: ${recipe.title}`,
-        html: htmlContent
-      });
-      
-      console.log(`Test email sent: ${info.messageId} to ${email}`);
-      
-      return res.jsonp({
-        success: true,
-        message: 'Testinis laiškas sėkmingai išsiųstas.'
-      });
-    } catch (error) {
-      console.error('Error sending test email:', error);
-      return res.status(500).jsonp({
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
         success: false,
-        error: 'Klaida siunčiant testinį laišką. Bandykite vėliau.'
-      });
-    }
-  } catch (error) {
-    console.error('Error in test email endpoint:', error);
-    return res.status(500).jsonp({
-      success: false,
-      error: 'Vidinė serverio klaida. Bandykite vėliau.'
-    });
-  }
-});
-
-// Endpoint to import subscribers from CSV
-server.post('/admin/newsletter/import', (req, res) => {
-  try {
-    const { emails } = req.body;
-    
-    if (!emails || !Array.isArray(emails) || emails.length === 0) {
-      return res.status(400).jsonp({
-        success: false,
-        error: 'Nėra el. pašto adresų importavimui.'
+        errors: validationErrors
       });
     }
     
-    // Get current subscribers
-    const data = getSubscribers();
-    
-    // Track new subscribers
-    let importedCount = 0;
-    
-    // Add new subscribers
-    emails.forEach(email => {
-      // Simple validation and deduplication
-      if (email && !data.subscribers.includes(email) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-        data.subscribers.push(email.trim());
-        importedCount++;
-      }
-    });
-    
-    // Save updated list
-    if (saveSubscribers(data)) {
-      console.log(`Imported ${importedCount} newsletter subscribers`);
-      return res.jsonp({
-        success: true,
-        message: `Sėkmingai importuota ${importedCount} el. pašto adresų.`,
-        imported: importedCount
-      });
-    } else {
-      return res.status(500).jsonp({
-        success: false,
-        error: 'Klaida išsaugant prenumeratorius. Bandykite vėliau.'
-      });
-    }
-  } catch (error) {
-    console.error('Error importing subscribers:', error);
-    return res.status(500).jsonp({
-      success: false,
-      error: 'Vidinė serverio klaida. Bandykite vėliau.'
-    });
-  }
-});
-
-// ==================== ORIGINAL API ROUTES ====================
-
-// Endpoint to get about page data
-server.get('/about', (req, res) => {
-  const aboutData = getAboutData();
-  res.jsonp({
-    success: true,
-    data: aboutData
-  });
-});
-
-// Endpoint to get about page data for the API prefix
-server.get('/api/about', (req, res) => {
-  const aboutData = getAboutData();
-  res.jsonp({
-    success: true,
-    data: aboutData
-  });
-});
-
-// Admin endpoint to get about page data
-server.get('/admin/about', (req, res) => {
-  const aboutData = getAboutData();
-  res.jsonp({
-    success: true,
-    data: aboutData
-  });
-});
-
-// Admin endpoint to update about page data
-server.put('/admin/about', upload.fields([
-  { name: 'image', maxCount: 1 },
-  { name: 'sidebar_image', maxCount: 1 }
-]), (req, res) => {
-  console.log("Updating about page data");
-  console.log("Request body:", req.body);
-  console.log("Files:", req.files);
-  
-  try {
-    // Get current data
-    const currentData = getAboutData();
-    
-    // Parse the sections from the request body
-    const sections = [];
-    const sectionTitles = req.body.section_titles || [];
-    const sectionContents = req.body.section_contents || [];
-    
-    // Handle sections
-    const titlesArray = Array.isArray(sectionTitles) ? sectionTitles : [sectionTitles];
-    const contentsArray = Array.isArray(sectionContents) ? sectionContents : [sectionContents];
-    
-    for (let i = 0; i < titlesArray.length; i++) {
-      if (titlesArray[i] && contentsArray[i]) {
-        sections.push({
-          title: titlesArray[i],
-          content: contentsArray[i]
-        });
-      }
-    }
-    
-    // Parse social links
-    const social = {
-      email: req.body.email || currentData.social?.email || 'info@saukstas-meiles.lt',
-      instagram: req.body.instagram || currentData.social?.instagram || '#',
-      facebook: req.body.facebook || currentData.social?.facebook || '#',
-      pinterest: req.body.pinterest || currentData.social?.pinterest || '#'
+    // Sanitize inputs
+    const updatedRecipe = {
+      ...req.body,
+      title: sanitizeInput(req.body.title),
+      intro: sanitizeInput(req.body.intro || ''),
+      notes: sanitizeInput(req.body.notes || ''),
+      updated_at: new Date().toISOString()
     };
     
-    // Create the updated data object
-    const updatedData = {
-      title: req.body.title || currentData.title,
-      subtitle: req.body.subtitle || currentData.subtitle,
-      intro: req.body.intro || currentData.intro,
-      sections: sections.length > 0 ? sections : currentData.sections,
-      social: social,
-      image: currentData.image, // Keep existing image by default
-      sidebar_image: currentData.sidebar_image // Keep existing sidebar image by default
-    };
-    
-    // Handle profile image upload
-    if (req.files && req.files.image && req.files.image[0]) {
-      // Store just the filename in the data (not the full path)
-      updatedData.image = req.files.image[0].filename;
-      console.log(`Saved about image as ${req.files.image[0].filename}`);
-    }
-    
-    // Handle sidebar image upload
-    if (req.files && req.files.sidebar_image && req.files.sidebar_image[0]) {
-      // Store just the filename in the data (not the full path)
-      updatedData.sidebar_image = req.files.sidebar_image[0].filename;
-      console.log(`Saved sidebar image as ${req.files.sidebar_image[0].filename}`);
-    }
-    
-    // Save the updated data
-    if (saveAboutData(updatedData)) {
-      res.jsonp({
-        success: true,
-        data: updatedData
-      });
-    } else {
-      res.status(500).jsonp({
-        success: false,
-        error: "Failed to save about page data"
-      });
-    }
-  } catch (error) {
-    console.error("Error updating about page:", error);
-    res.status(500).jsonp({
-      success: false,
-      error: "Failed to update about page: " + error.message
-    });
-  }
-});
-
-// Add custom routes before JSON Server router
-// Handle /api/recipes endpoints
-server.get('/api/recipes', (req, res) => {
-  const recipes = router.db.get('recipes').value();
-  
-  // Handle query parameters
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 12;
-  const category = req.query.category;
-  const popular = req.query.popular === 'true';
-  
-  let result = recipes;
-  
-  // Filter by category if provided
-  if (category) {
-    result = result.filter(recipe => 
-      recipe.categories && recipe.categories.includes(category)
-    );
-  }
-  
-  // If popular flag is set, just return first 5 recipes (simulating popular)
-  if (popular) {
-    result = result.slice(0, limit);
-    return res.jsonp({
-      success: true,
-      data: result
-    });
-  }
-  
-  // Calculate pagination
-  const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
-  const paginatedResult = result.slice(startIndex, endIndex);
-  
-  res.jsonp({
-    success: true,
-    data: paginatedResult,
-    meta: {
-      has_more: endIndex < result.length,
-      total: result.length,
-      page,
-      limit
-    }
-  });
-});
-
-// Add a direct endpoint for recipes without the /api prefix
-server.get('/recipes', (req, res) => {
-  const recipes = router.db.get('recipes').value();
-  
-  // Handle query parameters
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 12;
-  const category = req.query.category;
-  const popular = req.query.popular === 'true';
-  
-  let result = recipes;
-  
-  // Filter by category if provided
-  if (category) {
-    result = result.filter(recipe => 
-      recipe.categories && recipe.categories.includes(category)
-    );
-  }
-  
-  // If popular flag is set, just return first 5 recipes (simulating popular)
-  if (popular) {
-    result = result.slice(0, limit);
-    return res.jsonp({
-      success: true,
-      data: result
-    });
-  }
-  
-  // Calculate pagination
-  const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
-  const paginatedResult = result.slice(startIndex, endIndex);
-  
-  res.jsonp({
-    success: true,
-    data: paginatedResult,
-    meta: {
-      has_more: endIndex < result.length,
-      total: result.length,
-      page,
-      limit
-    }
-  });
-});
-
-// Get single recipe by ID without the /api prefix
-server.get('/recipes/:id', (req, res) => {
-  const recipe = router.db.get('recipes').find({ id: req.params.id }).value();
-  
-  if (recipe) {
-    res.jsonp({
-      success: true,
-      data: recipe
-    });
-  } else {
-    res.status(404).jsonp({
-      success: false,
-      error: 'Recipe not found'
-    });
-  }
-});
-
-// Add a direct endpoint for categories without the /api prefix
-server.get('/categories', (req, res) => {
-  const categories = router.db.get('categories').value();
-  
-  res.jsonp({
-    success: true,
-    data: categories
-  });
-});
-
-// Get single recipe by ID
-server.get('/api/recipes/:id', (req, res) => {
-  const recipe = router.db.get('recipes').find({ id: req.params.id }).value();
-  
-  if (recipe) {
-    res.jsonp({
-      success: true,
-      data: recipe
-    });
-  } else {
-    res.status(404).jsonp({
-      success: false,
-      error: 'Recipe not found'
-    });
-  }
-});
-
-// Handle /api/categories endpoint
-server.get('/api/categories', (req, res) => {
-  const categories = router.db.get('categories').value();
-  
-  res.jsonp({
-    success: true,
-    data: categories
-  });
-});
-
-// Add endpoint to rebuild categories
-server.get('/admin/rebuild-categories', (req, res) => {
-  try {
-    const categories = updateCategoriesList();
-    res.jsonp({
-      success: true,
-      data: categories
-    });
-  } catch (error) {
-    console.error('Error rebuilding categories:', error);
-    res.status(500).jsonp({
-      success: false,
-      error: 'Failed to rebuild categories'
-    });
-  }
-});
-
-// Handle /api/about endpoint with fallback data
-server.get('/api/about', (req, res) => {
-  // Return the data from our about.json file
-  const aboutData = getAboutData();
-  res.jsonp({
-    success: true,
-    data: aboutData
-  });
-});
-
-// Authentication endpoint without /api prefix
-server.post('/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = router.db.get('users').find({ username, password }).value();
-  
-  if (user) {
-    // Simple token generation
-    const token = Buffer.from(`${username}:${Date.now()}`).toString('base64');
-    
-    res.jsonp({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.username
+    // Handle image update
+    if (req.file) {
+      // Delete old image if exists
+      if (existingRecipe.image) {
+        const oldImagePath = path.join(__dirname, 'public', 'img', 'recipes', existingRecipe.image);
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+        }
       }
-    });
-  } else {
-    res.status(401).jsonp({
-      success: false,
-      error: 'Invalid credentials'
-    });
-  }
-});
-
-// Authentication endpoint with /api prefix
-server.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = router.db.get('users').find({ username, password }).value();
-  
-  if (user) {
-    // Simple token generation
-    const token = Buffer.from(`${username}:${Date.now()}`).toString('base64');
-    
-    res.jsonp({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.username
-      }
-    });
-  } else {
-    res.status(401).jsonp({
-      success: false,
-      error: 'Invalid credentials'
-    });
-  }
-});
-
-// Verify token endpoint with /api prefix
-server.get('/api/auth/verify', (req, res) => {
-  // Just return success for now
-  res.jsonp({
-    success: true,
-    user: {
-      id: '1',
-      username: 'admin'
-    }
-  });
-});
-
-// Verify token endpoint without /api prefix
-server.get('/auth/verify', (req, res) => {
-  // Just return success for now
-  res.jsonp({
-    success: true,
-    user: {
-      id: '1',
-      username: 'admin'
-    }
-  });
-});
-
-// Admin dashboard stats
-server.get('/admin/dashboard/stats', (req, res) => {
-  const recipes = router.db.get('recipes').value();
-  const comments = router.db.get('comments').value();
-  
-  // Count recipes with images
-  const mediaCount = recipes.filter(recipe => recipe.image).length;
-  
-  // Create stats
-  const stats = {
-    recipes: {
-      total: recipes.length,
-      published: recipes.filter(r => r.status === 'published').length,
-      draft: recipes.filter(r => r.status === 'draft' || !r.status).length
-    },
-    comments: {
-      total: comments ? comments.length : 0,
-      pending: comments ? comments.filter(c => c.status === 'pending' || !c.status).length : 0,
-      approved: comments ? comments.filter(c => c.status === 'approved').length : 0
-    },
-    media: {
-      total: mediaCount  // Updated to count recipes with images
-    },
-    recent_recipes: recipes.slice(0, 3).map(r => ({
-      id: r.id,
-      title: r.title,
-      categories: r.categories,
-      created_at: r.created_at,
-      image: r.image
-    })),
-    recent_comments: comments ? comments.slice(0, 2).map(c => ({
-      id: c.id,
-      author: c.author,
-      content: c.content && c.content.length > 50 ? c.content.substring(0, 50) + '...' : c.content,
-      recipe_title: findRecipeTitle(recipes, c.recipe_id) || 'Recipe title',
-      created_at: c.created_at
-    })) : []
-  };
-  
-  res.jsonp({
-    success: true,
-    data: stats
-  });
-  
-  // Helper function to find recipe title
-  function findRecipeTitle(recipes, recipeId) {
-    if (!recipeId) return null;
-    const recipe = recipes.find(r => r.id === recipeId);
-    return recipe ? recipe.title : null;
-  }
-});
-
-// Admin recipes
-server.get('/admin/recipes', (req, res) => {
-  let recipes = router.db.get('recipes').value();
-  
-  // Handle query parameters
-  const page = parseInt(req.query.page) || 1;
-  const limit = 10;
-  const status = req.query.status;
-  
-  if (status && status !== 'all') {
-    recipes = recipes.filter(recipe => recipe.status === status);
-  }
-  
-  // Calculate pagination
-  const startIndex = (page - 1) * limit;
-  const endIndex = page * limit;
-  const paginatedResult = recipes.slice(startIndex, endIndex);
-  
-  res.jsonp({
-    success: true,
-    data: paginatedResult,
-    meta: {
-      pages: Math.ceil(recipes.length / limit),
-      total: recipes.length
-    }
-  });
-});
-
-// Get admin recipe by ID
-server.get('/admin/recipes/:id', (req, res) => {
-  const recipe = router.db.get('recipes').find({ id: req.params.id }).value();
-  
-  if (recipe) {
-    res.jsonp({
-      success: true,
-      data: recipe
-    });
-  } else {
-    res.status(404).jsonp({
-      success: false,
-      error: 'Recipe not found'
-    });
-  }
-});
-
-// Handle recipe with image upload
-server.post('/admin/recipes', upload.single('image'), (req, res) => {
-  console.log("Creating new recipe with image");
-  console.log("Request body:", req.body);
-  console.log("File:", req.file);
-  
-  // Check if body is empty
-  if (!req.body || Object.keys(req.body).length === 0) {
-    console.error("Empty request body received!");
-    return res.status(400).jsonp({
-      success: false,
-      error: "Empty recipe data"
-    });
-  }
-  
-  const newRecipe = req.body;
-  
-  // Process arrays from form data
-  if (req.body['categories[]']) {
-    newRecipe.categories = Array.isArray(req.body['categories[]']) 
-      ? req.body['categories[]'] 
-      : [req.body['categories[]']];
-    delete newRecipe['categories[]'];
-  }
-  
-  if (req.body['ingredients[]']) {
-    newRecipe.ingredients = Array.isArray(req.body['ingredients[]']) 
-      ? req.body['ingredients[]'] 
-      : [req.body['ingredients[]']];
-    delete newRecipe['ingredients[]'];
-  }
-  
-  if (req.body['steps[]']) {
-    newRecipe.steps = Array.isArray(req.body['steps[]']) 
-      ? req.body['steps[]'] 
-      : [req.body['steps[]']];
-    delete newRecipe['steps[]'];
-  }
-  
-  if (req.body['tags[]']) {
-    newRecipe.tags = Array.isArray(req.body['tags[]']) 
-      ? req.body['tags[]'] 
-      : [req.body['tags[]']];
-    delete newRecipe['tags[]'];
-  }
-  
-  // Add the image filename if an image was uploaded
-  if (req.file) {
-    // Just store the filename, not the full path
-    newRecipe.image = req.file.filename;
-    console.log("Image saved with filename:", req.file.filename);
-    
-    // Verify the file exists
-    const filePath = req.file.path;
-    if (fs.existsSync(filePath)) {
-      console.log("Verified: File exists at", filePath);
-      const stats = fs.statSync(filePath);
-      console.log("File size:", stats.size, "bytes");
-    } else {
-      console.error("ERROR: File does not exist at", filePath);
-    }
-  }
-  
-  // Generate ID and creation date
-  newRecipe.id = Date.now().toString();
-  newRecipe.created_at = new Date().toISOString();
-  
-  try {
-    console.log("Adding recipe to database:", newRecipe);
-    
-    // Save to database
-    router.db.get('recipes').push(newRecipe).write();
-    
-    // Send newsletter if the recipe is published
-    if (newRecipe.status === 'published') {
-      // Get subscribers
-      const subscribersData = getSubscribers();
-      
-      if (subscribersData.subscribers.length > 0) {
-        // Create email subject
-        const emailSubject = `Naujas receptas: ${newRecipe.title}`;
-        
-        // Prepare recipients with personalized content
-        const recipients = subscribersData.subscribers.map(email => ({
-          email,
-          htmlContent: getNewsletterTemplate(newRecipe, email)
-        }));
-        
-        // Send newsletter
-        sendNewsletterEmail(emailSubject, recipients)
-          .then(success => {
-            if (success) {
-              console.log(`Newsletter sent to ${subscribersData.subscribers.length} subscribers for recipe: ${newRecipe.title}`);
-            } else {
-              console.error(`Failed to send newsletter for recipe: ${newRecipe.title}`);
-            }
-          });
-      }
+      updatedRecipe.image = req.file.filename;
     }
     
-    // Update categories list after adding a recipe
-    updateCategoriesList();
-    
-    // Verify it was saved
-    const savedRecipe = router.db.get('recipes').find({ id: newRecipe.id }).value();
-    console.log("Recipe saved in database:", savedRecipe ? "Yes" : "No");
-    
-    // Show database state
-    const allRecipes = router.db.get('recipes').value();
-    console.log(`Database now has ${allRecipes.length} recipes`);
-    
-    res.jsonp({
-      success: true,
-      data: newRecipe
-    });
-  } catch (error) {
-    console.error("Error adding recipe:", error);
-    res.status(500).jsonp({
-      success: false,
-      error: "Failed to save recipe: " + error.message
-    });
-  }
-});
-
-// Update admin recipe
-server.put('/admin/recipes/:id', upload.single('image'), (req, res) => {
-  const id = req.params.id;
-  console.log("Updating recipe:", id);
-  console.log("Request body:", req.body);
-  console.log("File:", req.file);
-  
-  // Process the request body to handle form data
-  const updatedRecipe = req.body;
-  
-  // Process arrays from form data
-  if (req.body['categories[]']) {
-    updatedRecipe.categories = Array.isArray(req.body['categories[]']) 
-      ? req.body['categories[]'] 
-      : [req.body['categories[]']];
-    delete updatedRecipe['categories[]'];
-  }
-  
-  if (req.body['ingredients[]']) {
-    updatedRecipe.ingredients = Array.isArray(req.body['ingredients[]']) 
-      ? req.body['ingredients[]'] 
-      : [req.body['ingredients[]']];
-    delete updatedRecipe['ingredients[]'];
-  }
-  
-  if (req.body['steps[]']) {
-    updatedRecipe.steps = Array.isArray(req.body['steps[]']) 
-      ? req.body['steps[]'] 
-      : [req.body['steps[]']];
-    delete updatedRecipe['steps[]'];
-  }
-  
-  if (req.body['tags[]']) {
-    updatedRecipe.tags = Array.isArray(req.body['tags[]']) 
-      ? req.body['tags[]'] 
-      : [req.body['tags[]']];
-    delete updatedRecipe['tags[]'];
-  }
-  
-  // Add the image filename if an image was uploaded
-  if (req.file) {
-    updatedRecipe.image = req.file.filename;
-    console.log("Updated image saved with filename:", req.file.filename);
-    
-    // Verify the file exists
-    const filePath = req.file.path;
-    if (fs.existsSync(filePath)) {
-      console.log("Verified: File exists at", filePath);
-      const stats = fs.statSync(filePath);
-      console.log("File size:", stats.size, "bytes");
-    } else {
-      console.error("ERROR: File does not exist at", filePath);
-    }
-  }
-  
-  const existingRecipe = router.db.get('recipes').find({ id }).value();
-  
-  if (!existingRecipe) {
-    return res.status(404).jsonp({
-      success: false,
-      error: 'Recipe not found'
-    });
-  }
-  
-  try {
-    // Check if the recipe status changed from draft to published
-    const wasPublished = existingRecipe.status !== 'published' && updatedRecipe.status === 'published';
-    
-    // Update the recipe in the database
+    // Update in database
     router.db.get('recipes').find({ id }).assign(updatedRecipe).write();
     
-    // Update categories list after updating a recipe
-    updateCategoriesList();
-    
-    console.log("Recipe updated successfully");
-    
-    // Send newsletter if the recipe is newly published
-    if (wasPublished) {
-      // Get subscribers
-      const subscribersData = getSubscribers();
-      
-      if (subscribersData.subscribers.length > 0) {
-        // Create email subject
-        const emailSubject = `Naujas receptas: ${updatedRecipe.title}`;
-        
-        // Prepare recipients with personalized content
-        const recipients = subscribersData.subscribers.map(email => ({
-          email,
-          htmlContent: getNewsletterTemplate(updatedRecipe, email)
-        }));
-        
-        // Send newsletter
-        sendNewsletterEmail(emailSubject, recipients)
-          .then(success => {
-            if (success) {
-              console.log(`Newsletter sent to ${subscribersData.subscribers.length} subscribers for recipe: ${updatedRecipe.title}`);
-            } else {
-              console.error(`Failed to send newsletter for recipe: ${updatedRecipe.title}`);
-            }
-          });
-      }
-    }
-    
-    res.jsonp({
+    res.json({
       success: true,
       data: updatedRecipe
     });
   } catch (error) {
-    console.error("Error updating recipe:", error);
-    res.status(500).jsonp({
+    console.error('Error updating recipe:', error);
+    res.status(500).json({
       success: false,
-      error: "Failed to update recipe: " + error.message
+      error: 'Klaida atnaujinant receptą.'
     });
   }
 });
 
-// Delete admin recipe
-server.delete('/admin/recipes/:id', (req, res) => {
-  const id = req.params.id;
-  
-  const existingRecipe = router.db.get('recipes').find({ id }).value();
-  
-  if (!existingRecipe) {
-    return res.status(404).jsonp({
-      success: false,
-      error: 'Recipe not found'
-    });
-  }
-  
-  // If the recipe has an image, try to delete the file too
-  if (existingRecipe.image) {
-    const imagePath = path.join(__dirname, 'public', 'img', 'recipes', existingRecipe.image);
-    if (fs.existsSync(imagePath)) {
-      try {
+// Delete recipe (admin only)
+server.delete('/admin/recipes/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const existingRecipe = router.db.get('recipes').find({ id }).value();
+    
+    if (!existingRecipe) {
+      return res.status(404).json({
+        success: false,
+        error: 'Receptas nerastas.'
+      });
+    }
+    
+    // Delete image if exists
+    if (existingRecipe.image) {
+      const imagePath = path.join(__dirname, 'public', 'img', 'recipes', existingRecipe.image);
+      if (fs.existsSync(imagePath)) {
         fs.unlinkSync(imagePath);
-        console.log("Deleted image file:", imagePath);
-      } catch (err) {
-        console.error("Error deleting image file:", err);
       }
     }
+    
+    // Delete from database
+    router.db.get('recipes').remove({ id }).write();
+    
+    res.json({
+      success: true,
+      message: 'Receptas sėkmingai ištrintas.'
+    });
+  } catch (error) {
+    console.error('Error deleting recipe:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Klaida trinant receptą.'
+    });
   }
+});
+
+// ==================== ABOUT PAGE ROUTES ====================
+
+// Get about data (public)
+server.get('/api/about', (req, res) => {
+  try {
+    const aboutData = readJsonFile(aboutFilePath) || {
+      title: 'Apie Mane',
+      subtitle: 'Kelionė į širdį per maistą',
+      intro: 'Sveiki...',
+      sections: [],
+      social: {}
+    };
+    
+    res.json({
+      success: true,
+      data: aboutData
+    });
+  } catch (error) {
+    console.error('Error getting about data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Klaida įkeliant informaciją.'
+    });
+  }
+});
+
+// Update about data (admin only)
+server.put('/admin/about', authenticateToken, upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'sidebar_image', maxCount: 1 }
+]), (req, res) => {
+  try {
+    const currentData = readJsonFile(aboutFilePath) || {};
+    
+    // Sanitize inputs
+    const updatedData = {
+      title: sanitizeInput(req.body.title || currentData.title),
+      subtitle: sanitizeInput(req.body.subtitle || currentData.subtitle),
+      intro: sanitizeInput(req.body.intro || currentData.intro),
+      sections: currentData.sections, // Handle sections separately
+      social: {
+        email: validateEmail(req.body.email) ? req.body.email : currentData.social?.email,
+        instagram: sanitizeInput(req.body.instagram || currentData.social?.instagram || '#'),
+        facebook: sanitizeInput(req.body.facebook || currentData.social?.facebook || '#'),
+        pinterest: sanitizeInput(req.body.pinterest || currentData.social?.pinterest || '#')
+      },
+      image: currentData.image,
+      sidebar_image: currentData.sidebar_image
+    };
+    
+    // Handle sections
+    if (req.body.section_titles && req.body.section_contents) {
+      const sections = [];
+      const titles = Array.isArray(req.body.section_titles) ? req.body.section_titles : [req.body.section_titles];
+      const contents = Array.isArray(req.body.section_contents) ? req.body.section_contents : [req.body.section_contents];
+      
+      for (let i = 0; i < titles.length; i++) {
+        if (titles[i] && contents[i]) {
+          sections.push({
+            title: sanitizeInput(titles[i]),
+            content: sanitizeInput(contents[i])
+          });
+        }
+      }
+      
+      updatedData.sections = sections;
+    }
+    
+    // Handle image uploads
+    if (req.files) {
+      if (req.files.image && req.files.image[0]) {
+        // Delete old image if exists
+        if (currentData.image) {
+          const oldImagePath = path.join(__dirname, 'public', 'img', 'about', currentData.image);
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        }
+        updatedData.image = req.files.image[0].filename;
+      }
+      
+      if (req.files.sidebar_image && req.files.sidebar_image[0]) {
+        // Delete old sidebar image if exists
+        if (currentData.sidebar_image) {
+          const oldImagePath = path.join(__dirname, 'public', 'img', 'about', currentData.sidebar_image);
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        }
+        updatedData.sidebar_image = req.files.sidebar_image[0].filename;
+      }
+    }
+    
+    if (writeJsonFile(aboutFilePath, updatedData)) {
+      res.json({
+        success: true,
+        data: updatedData
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Klaida išsaugant informaciją.'
+      });
+    }
+  } catch (error) {
+    console.error('Error updating about page:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Klaida atnaujinant informaciją.'
+    });
+  }
+});
+
+// Error handling middleware
+server.use((err, req, res, next) => {
+  console.error('Server error:', err);
   
-  router.db.get('recipes').remove({ id }).write();
+  // Don't expose internal errors to client
+  const message = process.env.NODE_ENV === 'production' 
+    ? 'Internal server error' 
+    : err.message;
   
-  // Update categories list after deleting a recipe
-  updateCategoriesList();
-  
-  res.jsonp({
-    success: true
+  res.status(err.status || 500).json({
+    success: false,
+    error: message
   });
 });
 
-// Use default router for any unhandled routes
+// Use default router
 server.use('/api', router);
 server.use(router);
 
-// Update categories on server start
-server.use((req, res, next) => {
-  // We need to wait until the DB is ready before updating categories
-  // So we'll update it on the first request
-  if (!global.categoriesUpdated) {
-    console.log("Initial categories update...");
-    updateCategoriesList();
-    global.categoriesUpdated = true;
-  }
-  next();
-});
-
 // Start server
-const port = 3001;
-server.listen(port, () => {
-  console.log(`JSON Server with custom routes is running at http://localhost:${port}`);
-  console.log('Available API endpoints:');
-  console.log(`http://localhost:${port}/api/recipes`);
-  console.log(`http://localhost:${port}/api/categories`);
-  console.log(`http://localhost:${port}/api/about`);
-  console.log(`http://localhost:${port}/api/newsletter/subscribe`);
-  console.log(`http://localhost:${port}/api/newsletter/unsubscribe`);
-  console.log(`http://localhost:${port}/admin/newsletter/subscribers`);
-  console.log(`http://localhost:${port}/admin/newsletter/send`);
-  console.log(`http://localhost:${port}/admin/newsletter/test`);
-  console.log(`http://localhost:${port}/api/auth/login`);
-  console.log(`http://localhost:${port}/auth/login`);
-  console.log(`http://localhost:${port}/admin/dashboard/stats`);
-  console.log(`http://localhost:${port}/admin/recipes`);
-  console.log(`http://localhost:${port}/admin/rebuild-categories`);
-  console.log(`http://localhost:${port}/admin/about`);
+const PORT = process.env.SERVER_PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Secure JSON Server is running at http://localhost:${PORT}`);
+  console.log('Environment:', process.env.NODE_ENV || 'development');
 });

@@ -5,35 +5,168 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  createUserWithEmailAndPassword 
+  sendPasswordResetEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 
 const AuthContext = createContext();
 
+// Custom hook for using auth context
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  
+  // Constants for security
+  const MAX_LOGIN_ATTEMPTS = 5;
+  const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+  const SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hour
+  
   useEffect(() => {
+    // Check for lockout on mount
+    const lockoutEndTime = localStorage.getItem('authLockoutEndTime');
+    if (lockoutEndTime) {
+      const remainingTime = parseInt(lockoutEndTime) - Date.now();
+      if (remainingTime > 0) {
+        setIsLocked(true);
+        setTimeout(() => {
+          setIsLocked(false);
+          localStorage.removeItem('authLockoutEndTime');
+          setLoginAttempts(0);
+        }, remainingTime);
+      } else {
+        localStorage.removeItem('authLockoutEndTime');
+      }
+    }
+    
+    // Set up auth state listener
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+      if (user) {
+        // Check session timeout
+        const lastActivity = localStorage.getItem('lastAuthActivity');
+        if (lastActivity) {
+          const timeSinceActivity = Date.now() - parseInt(lastActivity);
+          if (timeSinceActivity > SESSION_TIMEOUT) {
+            // Session expired
+            logout();
+            return;
+          }
+        }
+        
+        // Update last activity
+        localStorage.setItem('lastAuthActivity', Date.now().toString());
+        
+        // Set user with additional security info
+        setCurrentUser({
+          ...user,
+          sessionStart: Date.now()
+        });
+      } else {
+        setCurrentUser(null);
+      }
       setLoading(false);
     });
-
-    return unsubscribe;
-  }, []);
+    
+    // Set up activity listener for session timeout
+    const updateActivity = () => {
+      if (currentUser) {
+        localStorage.setItem('lastAuthActivity', Date.now().toString());
+      }
+    };
+    
+    window.addEventListener('click', updateActivity);
+    window.addEventListener('keypress', updateActivity);
+    
+    return () => {
+      unsubscribe();
+      window.removeEventListener('click', updateActivity);
+      window.removeEventListener('keypress', updateActivity);
+    };
+  }, [currentUser]);
 
   const login = async (email, password) => {
     try {
+      // Check if locked out
+      if (isLocked) {
+        return {
+          success: false,
+          error: 'Paskyra laikinai užblokuota dėl per daug bandymų. Bandykite vėliau.'
+        };
+      }
+      
+      // Validate inputs
+      if (!email || !password) {
+        return {
+          success: false,
+          error: 'Prašome įvesti el. paštą ir slaptažodį.'
+        };
+      }
+      
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return {
+          success: false,
+          error: 'Neteisingas el. pašto formatas.'
+        };
+      }
+      
+      // Attempt login
       const result = await signInWithEmailAndPassword(auth, email, password);
-      return { success: true, user: result.user };
+      
+      // Reset login attempts on success
+      setLoginAttempts(0);
+      localStorage.removeItem('authLockoutEndTime');
+      localStorage.setItem('lastAuthActivity', Date.now().toString());
+      
+      // Log successful login (for audit)
+      console.log('Successful login:', { 
+        email, 
+        timestamp: new Date().toISOString(),
+        ip: 'hidden' // In production, log actual IP
+      });
+      
+      return { 
+        success: true, 
+        user: result.user 
+      };
     } catch (error) {
       console.error('Login error:', error);
       
+      // Increment login attempts
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+      
+      // Check if should lock account
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockoutEndTime = Date.now() + LOCKOUT_DURATION;
+        localStorage.setItem('authLockoutEndTime', lockoutEndTime.toString());
+        setIsLocked(true);
+        
+        setTimeout(() => {
+          setIsLocked(false);
+          localStorage.removeItem('authLockoutEndTime');
+          setLoginAttempts(0);
+        }, LOCKOUT_DURATION);
+        
+        return {
+          success: false,
+          error: 'Per daug bandymų. Paskyra laikinai užblokuota 15 minučių.'
+        };
+      }
+      
+      // Handle specific error codes
       let errorMessage = 'Prisijungimo klaida. Bandykite vėliau.';
       
       switch (error.code) {
@@ -52,29 +185,140 @@ export function AuthProvider({ children }) {
         case 'auth/invalid-credential':
           errorMessage = 'Neteisingi prisijungimo duomenys.';
           break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Per daug bandymų. Bandykite vėliau.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Tinklo klaida. Patikrinkite internetą.';
+          break;
       }
       
-      return { success: false, error: errorMessage };
+      // Log failed attempt (for audit)
+      console.warn('Failed login attempt:', {
+        email,
+        timestamp: new Date().toISOString(),
+        error: error.code,
+        attempts: newAttempts
+      });
+      
+      return { 
+        success: false, 
+        error: errorMessage,
+        remainingAttempts: MAX_LOGIN_ATTEMPTS - newAttempts
+      };
     }
   };
 
   const logout = async () => {
     try {
       await signOut(auth);
+      localStorage.removeItem('lastAuthActivity');
+      setCurrentUser(null);
+      
+      // Log logout (for audit)
+      console.log('User logged out:', {
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
       console.error('Logout error:', error);
+      // Force logout even if Firebase fails
+      setCurrentUser(null);
+      localStorage.removeItem('lastAuthActivity');
     }
   };
 
-  // Helper function to create admin user (run once)
-  const createAdminUser = async (email, password) => {
+  const resetPassword = async (email) => {
     try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      console.log('Admin user created:', result.user.email);
-      return { success: true };
+      // Validate email
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return {
+          success: false,
+          error: 'Prašome įvesti teisingą el. pašto adresą.'
+        };
+      }
+      
+      await sendPasswordResetEmail(auth, email);
+      
+      return {
+        success: true,
+        message: 'Slaptažodžio atkūrimo instrukcijos išsiųstos el. paštu.'
+      };
     } catch (error) {
-      console.error('Error creating admin user:', error);
-      return { success: false, error: error.message };
+      console.error('Password reset error:', error);
+      
+      let errorMessage = 'Klaida siunčiant atkūrimo instrukciją.';
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Vartotojas su šiuo el. paštu nerastas.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Per daug bandymų. Bandykite vėliau.';
+      }
+      
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      if (!currentUser) {
+        return {
+          success: false,
+          error: 'Vartotojas neprisijungęs.'
+        };
+      }
+      
+      // Validate new password
+      if (!newPassword || newPassword.length < 8) {
+        return {
+          success: false,
+          error: 'Naujas slaptažodis turi būti bent 8 simbolių.'
+        };
+      }
+      
+      // Password strength check
+      const hasUpperCase = /[A-Z]/.test(newPassword);
+      const hasLowerCase = /[a-z]/.test(newPassword);
+      const hasNumbers = /\d/.test(newPassword);
+      const hasSpecialChar = /[!@#$%^&*]/.test(newPassword);
+      
+      if (!(hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar)) {
+        return {
+          success: false,
+          error: 'Slaptažodis turi turėti didžiąją raidę, mažąją raidę, skaičių ir specialų simbolį.'
+        };
+      }
+      
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        currentPassword
+      );
+      
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updatePassword(auth.currentUser, newPassword);
+      
+      return {
+        success: true,
+        message: 'Slaptažodis sėkmingai pakeistas.'
+      };
+    } catch (error) {
+      console.error('Change password error:', error);
+      
+      let errorMessage = 'Klaida keičiant slaptažodį.';
+      
+      if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Neteisingas dabartinis slaptažodis.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Naujas slaptažodis per silpnas.';
+      }
+      
+      return {
+        success: false,
+        error: errorMessage
+      };
     }
   };
 
@@ -82,9 +326,13 @@ export function AuthProvider({ children }) {
     currentUser,
     login,
     logout,
+    resetPassword,
+    changePassword,
     isAuthenticated: !!currentUser,
     loading,
-    createAdminUser // For initial setup only
+    isLocked,
+    loginAttempts,
+    maxLoginAttempts: MAX_LOGIN_ATTEMPTS
   };
 
   return (
