@@ -27,6 +27,8 @@ nav ul {
   flex-wrap: wrap;
   justify-content: center;
   list-style: none;
+  margin: 0;
+  padding: 0;
   margin-top: 1rem;
 }
 
@@ -36,18 +38,19 @@ nav ul li {
 }
 
 nav ul li a, .dropdown-btn {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Source Sans Pro', sans-serif;
   font-size: 0.95rem;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   padding-bottom: 2px;
   border-bottom: 1px solid transparent;
-  font-weight: 400;
+  font-weight: 500;
   display: inline-block;
   background: none;
   border: none;
   cursor: pointer;
   color: #7f4937;
+  text-decoration: none;
 }
 
 nav ul li a:hover, .dropdown-btn:hover {
