@@ -45,9 +45,12 @@ service cloud.firestore {
              data.created_at == request.time;
     }
     
-    // Admin users collection - only admins can read/write
+    // Admin users collection
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      // Allow authenticated users to read their own document
+      allow read: if isOwner(userId);
+      // Allow admins to read all user documents
+      allow read: if isAdmin();
       allow create: if false; // Users should be created through Admin SDK
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role; // Can't change own role
       allow delete: if isAdmin() && !isOwner(userId); // Can't delete self
@@ -56,7 +59,9 @@ service cloud.firestore {
     // Recipes collection
     match /recipes/{recipeId} {
       // Anyone can read published recipes
-      allow read: if resource.data.status == 'published' || isAdmin();
+      allow read: if resource.data.status == 'published';
+      // Admins can read all recipes (including drafts)
+      allow read: if isAdmin();
       
       // Only admins can create/update/delete
       allow create: if isAdmin() && isValidRecipe();
@@ -65,7 +70,7 @@ service cloud.firestore {
       
       // Comments subcollection
       match /comments/{commentId} {
-        // FIXED: Anyone can read all comments (you can filter approved ones in your app)
+        // Anyone can read all comments
         allow read: if true;
         
         // Anyone can create comments (with auto-approval)
