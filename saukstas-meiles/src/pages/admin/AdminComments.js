@@ -25,13 +25,27 @@ const AdminComments = () => {
       });
       
       if (response.data.success) {
-        setComments(response.data.data);
+        // Ensure all comments have required fields
+        const validatedComments = response.data.data.map(comment => ({
+          id: comment.id || '',
+          recipeId: comment.recipeId || '',
+          recipeTitle: comment.recipeTitle || 'Nežinomas receptas',
+          author: comment.author || 'Anonimas',
+          email: comment.email || '',
+          content: comment.content || '',
+          created_at: comment.created_at || new Date().toISOString(),
+          status: comment.status || 'approved'
+        }));
+        
+        setComments(validatedComments);
       } else {
         setError('Nepavyko įkelti komentarų.');
+        setComments([]);
       }
     } catch (error) {
       console.error('Error fetching comments:', error);
       setError('Klaida įkeliant komentarus. Bandykite vėliau.');
+      setComments([]);
     } finally {
       setLoading(false);
     }
@@ -40,11 +54,11 @@ const AdminComments = () => {
   const handleDelete = async (recipeId, commentId) => {
     console.log('Attempting to delete comment:', { recipeId, commentId });
     
-    // Validate recipeId
-    if (!recipeId || recipeId === 'undefined' || recipeId === 'null') {
+    // Validate IDs
+    if (!recipeId || recipeId === 'undefined' || recipeId === 'null' || !commentId) {
       setNotification({
         title: 'Klaida',
-        message: 'Nerastas recepto ID. Bandykite perkrauti puslapį.',
+        message: 'Nerastas recepto arba komentaro ID. Bandykite perkrauti puslapį.',
         type: 'error'
       });
       return;
@@ -63,7 +77,14 @@ const AdminComments = () => {
           message: 'Komentaras ištrintas.',
           type: 'success'
         });
-        fetchComments();
+        
+        // Remove comment from local state immediately
+        setComments(prevComments => 
+          prevComments.filter(comment => comment.id !== commentId)
+        );
+        
+        // Optionally refresh all comments
+        setTimeout(fetchComments, 500);
       } else {
         setNotification({
           title: 'Klaida',
@@ -86,6 +107,10 @@ const AdminComments = () => {
     
     try {
       const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
       return date.toLocaleDateString('lt-LT', {
         year: 'numeric',
         month: 'short',
@@ -126,8 +151,8 @@ const AdminComments = () => {
           </div>
         ) : (
           <div className="comments-admin-list">
-            {comments.map(comment => (
-              <div key={`${comment.recipeId}-${comment.id}`} className="comment-admin-item">
+            {comments.map((comment, index) => (
+              <div key={comment.id || `comment-${index}`} className="comment-admin-item">
                 <div className="comment-admin-header">
                   <div className="comment-admin-author">
                     <strong>{comment.author}</strong> 
@@ -139,7 +164,7 @@ const AdminComments = () => {
                 </div>
                 
                 <div className="comment-admin-recipe">
-                  Receptas: <strong>{comment.recipeTitle || 'Nežinomas'}</strong>
+                  Receptas: <strong>{comment.recipeTitle}</strong>
                   {!comment.recipeId && (
                     <span style={{ color: '#cf5151', marginLeft: '10px' }}>
                       (Recepto ID nerastas)
@@ -157,7 +182,7 @@ const AdminComments = () => {
                       className="action-btn delete-btn"
                       onClick={() => handleDelete(comment.recipeId, comment.id)}
                       title="Ištrinti"
-                      disabled={!comment.recipeId}
+                      disabled={!comment.recipeId || !comment.id}
                     >
                       <i className="fas fa-trash"></i> Ištrinti
                     </button>

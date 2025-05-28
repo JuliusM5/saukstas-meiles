@@ -14,6 +14,7 @@ const AdminAddRecipe = () => {
   const [loading, setLoading] = useState(!!id);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!id;
 
   useEffect(() => {
@@ -25,16 +26,28 @@ const AdminAddRecipe = () => {
   const fetchRecipe = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const response = await api.get(`/admin/recipes/${id}`);
       
       if (response.data.success) {
         setRecipe(response.data.data);
       } else {
         setError('Receptas nerastas');
+        setNotification({
+          title: 'Klaida',
+          message: 'Receptas nerastas',
+          type: 'error'
+        });
       }
     } catch (error) {
       console.error('Error fetching recipe:', error);
       setError('Klaida įkeliant receptą');
+      setNotification({
+        title: 'Klaida',
+        message: 'Klaida įkeliant receptą. Bandykite vėliau.',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -42,21 +55,33 @@ const AdminAddRecipe = () => {
 
   const handleSubmit = async (formData) => {
     try {
-      setLoading(true);
+      setIsSubmitting(true);
+      setError(null);
+      
+      // Validate required fields
+      if (!formData.title || formData.title.trim().length < 3) {
+        setNotification({
+          title: 'Klaida',
+          message: 'Pavadinimas turi būti bent 3 simbolių ilgio.',
+          type: 'error'
+        });
+        setIsSubmitting(false);
+        return;
+      }
       
       // Prepare recipe data
       const recipeData = {
-        title: formData.title,
-        intro: formData.intro,
+        title: formData.title.trim(),
+        intro: formData.intro?.trim() || '',
         categories: formData.categories || [],
-        ingredients: formData.ingredients?.filter(ing => ing.trim()) || [],
-        steps: formData.steps?.filter(step => step.trim()) || [],
+        ingredients: formData.ingredients?.filter(ing => ing && ing.trim()) || [],
+        steps: formData.steps?.filter(step => step && step.trim()) || [],
         tags: formData.tags || [],
-        prep_time: formData.prep_time,
-        cook_time: formData.cook_time,
-        servings: formData.servings,
-        notes: formData.notes,
-        status: formData.status
+        prep_time: parseInt(formData.prep_time) || 0,
+        cook_time: parseInt(formData.cook_time) || 0,
+        servings: parseInt(formData.servings) || 1,
+        notes: formData.notes?.trim() || '',
+        status: formData.status || 'draft'
       };
       
       let response;
@@ -97,13 +122,47 @@ const AdminAddRecipe = () => {
       console.error('Error saving recipe:', error);
       setNotification({
         title: 'Klaida',
-        message: 'Klaida išsaugant receptą. Bandykite vėliau.',
+        message: error.message || 'Klaida išsaugant receptą. Bandykite vėliau.',
         type: 'error'
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div id="admin-add-recipe">
+        <AdminHeader activePage={isEditing ? 'edit-recipe' : 'add-recipe'} />
+        
+        <main className="admin-main container">
+          <div className="loading">Įkeliama...</div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error && isEditing) {
+    return (
+      <div id="admin-add-recipe">
+        <AdminHeader activePage="edit-recipe" />
+        
+        <main className="admin-main container">
+          <div className="error-message">
+            {error}
+            <div style={{ marginTop: '20px' }}>
+              <button 
+                onClick={() => navigate('/admin/recipes')}
+                className="submit-button"
+              >
+                Grįžti į receptus
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div id="admin-add-recipe">
@@ -116,17 +175,11 @@ const AdminAddRecipe = () => {
           </h2>
         </div>
         
-        {loading && !recipe ? (
-          <div className="loading">Įkeliama...</div>
-        ) : error ? (
-          <div className="error-message">{error}</div>
-        ) : (
-          <RecipeForm 
-            recipe={recipe} 
-            onSubmit={handleSubmit} 
-            isSubmitting={loading}
-          />
-        )}
+        <RecipeForm 
+          recipe={recipe} 
+          onSubmit={handleSubmit} 
+          isSubmitting={isSubmitting}
+        />
       </main>
       
       {notification && (
@@ -135,6 +188,7 @@ const AdminAddRecipe = () => {
           message={notification.message} 
           type={notification.type}
           onClose={() => setNotification(null)}
+          autoHide={notification.type === 'success'}
         />
       )}
     </div>

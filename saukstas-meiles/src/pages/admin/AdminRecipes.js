@@ -24,26 +24,37 @@ const AdminRecipes = () => {
       setError(null);
       
       const response = await api.get('/admin/recipes', {
-        params: { page, status }
+        params: { page, status: status === 'all' ? undefined : status }
       });
       
       if (response.data.success) {
-        setRecipes(response.data.data);
+        // Ensure all recipes have required fields
+        const validatedRecipes = response.data.data.map(recipe => ({
+          id: recipe.id || '',
+          title: recipe.title || 'Nepavadintas',
+          categories: recipe.categories || [],
+          created_at: recipe.created_at || new Date().toISOString(),
+          status: recipe.status || 'draft',
+          image: recipe.image || null
+        }));
+        
+        setRecipes(validatedRecipes);
         setTotalPages(response.data.meta?.pages || 1);
       } else {
         setError('Nepavyko įkelti receptų.');
-        // Show notification
+        setRecipes([]);
+        
         setNotification({
           title: 'Klaida',
-          message: 'Nepavyko įkelti receptų.',
+          message: response.data.error || 'Nepavyko įkelti receptų.',
           type: 'error'
         });
       }
     } catch (error) {
       console.error('Error fetching recipes:', error);
       setError('Klaida įkeliant receptus. Bandykite vėliau.');
+      setRecipes([]);
       
-      // Show notification
       setNotification({
         title: 'Klaida',
         message: 'Klaida įkeliant receptus. Bandykite vėliau.',
@@ -64,6 +75,15 @@ const AdminRecipes = () => {
   };
 
   const handleDelete = async (id) => {
+    if (!id) {
+      setNotification({
+        title: 'Klaida',
+        message: 'Nerastas recepto ID.',
+        type: 'error'
+      });
+      return;
+    }
+    
     if (!window.confirm('Ar tikrai norite ištrinti šį receptą? Šio veiksmo nebus galima atšaukti.')) {
       return;
     }
@@ -72,17 +92,24 @@ const AdminRecipes = () => {
       const response = await api.delete(`/admin/recipes/${id}`);
       
       if (response.data.success) {
-        // Show success notification
         setNotification({
           title: 'Sėkmė',
           message: 'Receptas sėkmingai ištrintas.',
           type: 'success'
         });
         
-        // Refresh recipes
-        fetchRecipes(currentPage, activeTab);
+        // Remove recipe from local state
+        setRecipes(prevRecipes => 
+          prevRecipes.filter(recipe => recipe.id !== id)
+        );
+        
+        // Refresh recipes if needed
+        if (recipes.length === 1 && currentPage > 1) {
+          handlePageChange(currentPage - 1);
+        } else {
+          fetchRecipes(currentPage, activeTab);
+        }
       } else {
-        // Show error notification
         setNotification({
           title: 'Klaida',
           message: response.data.error || 'Klaida trinant receptą.',
@@ -92,7 +119,6 @@ const AdminRecipes = () => {
     } catch (error) {
       console.error('Error deleting recipe:', error);
       
-      // Show error notification
       setNotification({
         title: 'Klaida',
         message: 'Klaida trinant receptą. Bandykite vėliau.',
@@ -107,6 +133,10 @@ const AdminRecipes = () => {
     
     try {
       const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
       return date.toLocaleDateString('lt-LT', {
         year: 'numeric',
         month: 'short',
@@ -114,7 +144,7 @@ const AdminRecipes = () => {
       });
     } catch (error) {
       console.warn('Error formatting date:', error);
-      return dateString;
+      return '';
     }
   };
 
@@ -167,29 +197,39 @@ const AdminRecipes = () => {
               </thead>
               <tbody>
                 {recipes.length > 0 ? (
-                  recipes.map(recipe => (
-                    <tr key={recipe.id}>
-                      <td>{recipe.title || 'Nepavadintas'}</td>
-                      <td>{recipe.categories && recipe.categories.length ? recipe.categories.join(', ') : '-'}</td>
+                  recipes.map((recipe, index) => (
+                    <tr key={recipe.id || `recipe-${index}`}>
+                      <td>{recipe.title}</td>
+                      <td>{recipe.categories.length > 0 ? recipe.categories.join(', ') : '-'}</td>
                       <td>{formatDate(recipe.created_at) || '-'}</td>
-                      <td>{recipe.status === 'published' ? 'Publikuotas' : 'Juodraštis'}</td>
+                      <td>
+                        <span className={`status-badge ${recipe.status}`}>
+                          {recipe.status === 'published' ? 'Publikuotas' : 'Juodraštis'}
+                        </span>
+                      </td>
                       <td>
                         <div className="action-buttons">
-                          <Link 
-                            to={`/admin/recipes/edit/${recipe.id}`} 
-                            className="action-btn edit-btn"
-                            title="Redaguoti"
-                          >
-                            <i className="fas fa-edit"></i>
-                          </Link>
-                          <button 
-                            type="button" 
-                            className="action-btn delete-btn"
-                            title="Ištrinti"
-                            onClick={() => handleDelete(recipe.id)}
-                          >
-                            <i className="fas fa-trash"></i>
-                          </button>
+                          {recipe.id ? (
+                            <>
+                              <Link 
+                                to={`/admin/recipes/edit/${recipe.id}`} 
+                                className="action-btn edit-btn"
+                                title="Redaguoti"
+                              >
+                                <i className="fas fa-edit"></i>
+                              </Link>
+                              <button 
+                                type="button" 
+                                className="action-btn delete-btn"
+                                title="Ištrinti"
+                                onClick={() => handleDelete(recipe.id)}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
                         </div>
                       </td>
                     </tr>

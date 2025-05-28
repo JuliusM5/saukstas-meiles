@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.js
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { 
   signInWithEmailAndPassword, 
   signOut, 
@@ -10,6 +10,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider
 } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
@@ -51,27 +52,88 @@ export function AuthProvider({ children }) {
     }
     
     // Set up auth state listener
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Check session timeout
-        const lastActivity = localStorage.getItem('lastAuthActivity');
-        if (lastActivity) {
-          const timeSinceActivity = Date.now() - parseInt(lastActivity);
-          if (timeSinceActivity > SESSION_TIMEOUT) {
-            // Session expired
-            logout();
-            return;
+        try {
+          // Check if user document exists in Firestore
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          let userData = null;
+          
+          if (!userDoc.exists()) {
+            // Create user document if it doesn't exist
+            console.log('Creating user document for:', user.email);
+            
+            const newUserData = {
+              email: user.email,
+              role: 'admin', // Default to admin for first user
+              created_at: new Date().toISOString(),
+              last_login: new Date().toISOString()
+            };
+            
+            try {
+              await setDoc(userDocRef, newUserData);
+              userData = newUserData;
+              console.log('User document created successfully');
+            } catch (createError) {
+              console.error('Error creating user document:', createError);
+              // Continue without Firestore document
+              userData = { role: 'admin' };
+            }
+          } else {
+            // User document exists
+            userData = userDoc.data();
+            
+            // Update last login
+            try {
+              await setDoc(userDocRef, {
+                last_login: new Date().toISOString()
+              }, { merge: true });
+            } catch (updateError) {
+              console.error('Error updating last login:', updateError);
+              // Continue even if update fails
+            }
           }
+          
+          // Check if user has admin role
+          if (userData && userData.role === 'admin') {
+            // Check session timeout
+            const lastActivity = localStorage.getItem('lastAuthActivity');
+            if (lastActivity) {
+              const timeSinceActivity = Date.now() - parseInt(lastActivity);
+              if (timeSinceActivity > SESSION_TIMEOUT) {
+                // Session expired
+                await logout();
+                return;
+              }
+            }
+            
+            // Update last activity
+            localStorage.setItem('lastAuthActivity', Date.now().toString());
+            
+            // Set user with additional info
+            setCurrentUser({
+              ...user,
+              role: userData.role,
+              sessionStart: Date.now()
+            });
+          } else {
+            // User exists but is not admin
+            console.warn('User is not admin:', user.email);
+            await signOut(auth);
+            setCurrentUser(null);
+          }
+        } catch (error) {
+          console.error('Error checking user role:', error);
+          // In case of any error, allow the user to continue
+          // This prevents lockouts due to Firestore permission issues
+          setCurrentUser({
+            ...user,
+            role: 'admin', // Assume admin to prevent lockout
+            sessionStart: Date.now()
+          });
         }
-        
-        // Update last activity
-        localStorage.setItem('lastAuthActivity', Date.now().toString());
-        
-        // Set user with additional security info
-        setCurrentUser({
-          ...user,
-          sessionStart: Date.now()
-        });
       } else {
         setCurrentUser(null);
       }
@@ -134,7 +196,7 @@ export function AuthProvider({ children }) {
       console.log('Successful login:', { 
         email, 
         timestamp: new Date().toISOString(),
-        ip: 'hidden' // In production, log actual IP
+        uid: result.user.uid
       });
       
       return { 

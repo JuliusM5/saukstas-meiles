@@ -54,3 +54,28 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Status Badge Styles */
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.status-badge.published {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.draft {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+/* Text muted for missing data */
+.text-muted {
+  color: #999;
+  font-style: italic;
+}

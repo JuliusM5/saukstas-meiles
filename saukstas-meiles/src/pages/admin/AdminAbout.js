@@ -13,7 +13,6 @@ const AdminAbout = () => {
     subtitle: '',
     intro: '',
     sections: [
-      { title: '', content: '' },
       { title: '', content: '' }
     ],
     social: {
@@ -57,7 +56,9 @@ const AdminAbout = () => {
             instagram: data.social?.instagram || '',
             facebook: data.social?.facebook || '',
             pinterest: data.social?.pinterest || ''
-          }
+          },
+          image: null,
+          sidebar_image: null
         });
         
         // Set current images if exist
@@ -136,6 +137,26 @@ const AdminAbout = () => {
     const file = e.target.files[0];
     
     if (file) {
+      // Validate file
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setNotification({
+          title: 'Klaida',
+          message: 'Leidžiami tik JPEG, PNG, GIF ir WebP formatai.',
+          type: 'error'
+        });
+        return;
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        setNotification({
+          title: 'Klaida',
+          message: 'Nuotraukos dydis negali viršyti 5MB.',
+          type: 'error'
+        });
+        return;
+      }
+      
       setFormData(prev => ({
         ...prev,
         image: file
@@ -155,14 +176,33 @@ const AdminAbout = () => {
       ...prev,
       image: null
     }));
-    setPreviewImage(null);
-    setCurrentImage(null);
+    setPreviewImage(currentImage);
   };
   
   const handleSidebarImageChange = (e) => {
     const file = e.target.files[0];
     
     if (file) {
+      // Validate file
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        setNotification({
+          title: 'Klaida',
+          message: 'Leidžiami tik JPEG, PNG, GIF ir WebP formatai.',
+          type: 'error'
+        });
+        return;
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        setNotification({
+          title: 'Klaida',
+          message: 'Nuotraukos dydis negali viršyti 5MB.',
+          type: 'error'
+        });
+        return;
+      }
+      
       setFormData(prev => ({
         ...prev,
         sidebar_image: file
@@ -182,17 +222,16 @@ const AdminAbout = () => {
       ...prev,
       sidebar_image: null
     }));
-    setPreviewSidebarImage(null);
-    setCurrentSidebarImage(null);
+    setPreviewSidebarImage(currentSidebarImage);
   };
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.title) {
+    if (!formData.title || formData.title.trim().length < 3) {
       setNotification({
         title: 'Klaida',
-        message: 'Prašome įvesti puslapio pavadinimą.',
+        message: 'Prašome įvesti puslapio pavadinimą (bent 3 simboliai).',
         type: 'error'
       });
       return;
@@ -203,10 +242,13 @@ const AdminAbout = () => {
       
       // Prepare about data
       const aboutData = {
-        title: formData.title,
-        subtitle: formData.subtitle,
-        intro: formData.intro,
-        sections: formData.sections.filter(section => section.title && section.content),
+        title: formData.title.trim(),
+        subtitle: formData.subtitle.trim(),
+        intro: formData.intro.trim(),
+        sections: formData.sections.filter(section => 
+          section.title && section.title.trim() && 
+          section.content && section.content.trim()
+        ),
         social: formData.social
       };
       
@@ -219,7 +261,7 @@ const AdminAbout = () => {
         aboutData.sidebar_image = currentSidebarImage;
       }
       
-      // Update about data using Firebase API
+      // Update about data
       const response = await api.put('/admin/about', {
         aboutData,
         mainImageFile: formData.image,
@@ -250,7 +292,9 @@ const AdminAbout = () => {
         }));
         
         // Refresh data
-        fetchAboutData();
+        setTimeout(() => {
+          fetchAboutData();
+        }, 1000);
       } else {
         setNotification({
           title: 'Klaida',
@@ -268,6 +312,19 @@ const AdminAbout = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Get image URL helper
+  const getImageUrl = (image) => {
+    if (!image) return null;
+    
+    // If it's already a full URL (from Firebase Storage), use it directly
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+      return image;
+    }
+    
+    // Otherwise, assume it's a local image
+    return `/img/about/${image}`;
   };
   
   if (loading) {
@@ -356,7 +413,7 @@ const AdminAbout = () => {
                 
                 {previewImage && (
                   <div className="image-preview" style={{ display: 'block' }}>
-                    <img src={previewImage} alt="Profile preview" />
+                    <img src={getImageUrl(previewImage)} alt="Profile preview" />
                     <button 
                       type="button" 
                       className="remove-image"
@@ -392,7 +449,7 @@ const AdminAbout = () => {
                 
                 {previewSidebarImage && (
                   <div className="image-preview sidebar-preview" style={{ display: 'block' }}>
-                    <img src={previewSidebarImage} alt="Sidebar profile preview" />
+                    <img src={getImageUrl(previewSidebarImage)} alt="Sidebar profile preview" />
                     <button 
                       type="button" 
                       className="remove-image"
@@ -488,7 +545,6 @@ const AdminAbout = () => {
                       className="form-control"
                       value={section.title}
                       onChange={(e) => handleSectionChange(index, 'title', e.target.value)}
-                      required
                       disabled={submitting}
                     />
                   </div>
@@ -501,7 +557,6 @@ const AdminAbout = () => {
                       rows="6"
                       value={section.content}
                       onChange={(e) => handleSectionChange(index, 'content', e.target.value)}
-                      required
                       disabled={submitting}
                     ></textarea>
                   </div>
