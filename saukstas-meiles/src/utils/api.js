@@ -401,7 +401,7 @@ class SecureFirebaseAPI {
       
       await addDoc(subscribersRef, {
         email: email.toLowerCase().trim(),
-        subscribed_at: new Date().toISOString(),
+        subscribed_at: serverTimestamp(),
         active: true
       });
       

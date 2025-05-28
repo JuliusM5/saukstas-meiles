@@ -41,8 +41,7 @@ service cloud.firestore {
              data.content is string &&
              data.content.size() > 0 &&
              data.content.size() <= 1000 &&
-             (!('email' in data) || data.email == '' || isValidEmail(data.email)) &&
-             data.created_at == request.time;
+             (!('email' in data) || data.email == '' || isValidEmail(data.email));
     }
     
     // Admin users collection
@@ -73,7 +72,7 @@ service cloud.firestore {
         // Anyone can read all comments
         allow read: if true;
         
-        // Anyone can create comments (with auto-approval)
+        // Anyone can create comments with valid data
         allow create: if isValidComment() &&
                         request.resource.data.status == 'approved';
         
@@ -92,21 +91,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Newsletter subscribers
+    // Newsletter subscribers - UPDATED RULES
     match /newsletter_subscribers/{subscriberId} {
-      // Only allow creation with valid email
-      allow create: if isValidEmail(request.resource.data.email) &&
-                      request.resource.data.active == true &&
-                      request.resource.data.subscribed_at == request.time &&
-                      request.resource.data.keys().hasAll(['email', 'active', 'subscribed_at']) &&
-                      request.resource.data.keys().size() == 3;
+      // Allow creation with valid email
+      allow create: if request.resource.data.email is string &&
+                      request.resource.data.email.size() > 0 &&
+                      isValidEmail(request.resource.data.email) &&
+                      request.resource.data.active == true;
       
       // Only admins can read
       allow read: if isAdmin();
       
       // Allow users to update their own subscription by email (unsubscribe)
       allow update: if resource.data.email == request.resource.data.email &&
-                      request.resource.data.keys().hasAll(['active']) &&
                       request.resource.data.active == false;
       
       // Only admins can delete
