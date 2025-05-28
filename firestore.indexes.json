@@ -27,16 +27,6 @@
           "order": "DESCENDING"
         }
       ]
-    },
-    {
-      "collectionGroup": "comments",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "created_at",
-          "order": "DESCENDING"
-        }
-      ]
     }
   ],
   "fieldOverrides": []
