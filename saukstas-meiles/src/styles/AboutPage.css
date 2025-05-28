@@ -31,8 +31,11 @@
   max-width: 500px;
 }
 
-.about-image img,
-.about-image .placeholder-image {
+.about-image:empty {
+  display: none;
+}
+
+.about-image img {
   width: 100%;
   height: auto;
   border-radius: 8px;

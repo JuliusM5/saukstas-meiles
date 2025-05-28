@@ -155,18 +155,14 @@ const AboutPage = () => {
           <div className="about-image">
             {data.image ? (
               <img 
-                src={data.image} 
+                src={data.image.startsWith('http') ? data.image : `/img/about/${data.image}`} 
                 alt="Autorė" 
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='300' viewBox='0 0 500 300'%3E%3Crect fill='%23f8f5f1' width='500' height='300'/%3E%3Ctext fill='%237f4937' font-family='sans-serif' font-size='30' text-anchor='middle' x='250' y='150'%3ELidija - Šaukštas Meilės autorė%3C/text%3E%3C/svg%3E";
+                  e.target.style.display = 'none';
                 }}
               />
-            ) : (
-              <div className="placeholder-image">
-                <span>Lidija - Šaukštas Meilės autorė</span>
-              </div>
-            )}
+            ) : null}
           </div>
           
           <p className="about-intro">{data.intro}</p>
